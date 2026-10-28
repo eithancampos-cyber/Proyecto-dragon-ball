@@ -1,19 +1,24 @@
+import java.awt.Dimension;
 import java.awt.Font;
 import javax.swing.*;
 
-public class VentanaPrincipal extends JFrame {
+/**
+ * Menú principal del Memory Game.
+ * Ahora es un JPanel (antes era un JFrame) para mostrarse en la ventana única.
+ */
+public class VentanaPrincipal extends JPanel {
 
     private final JButton btnAjustes;
     private final JButton btnMejoresJugadores;
     private final JButton btnSeleccionModo;
 
+    // Acciones de navegación que Main le asigna (una por cada modo de juego)
+    private Runnable alModoClasico;   // se ejecuta tras elegir "Modo Clásico"
+    private Runnable alModoPatrones;  // se ejecuta tras elegir "Modo Patrones"
+
     public VentanaPrincipal() {
-        setTitle("Memory Game - Menú Principal");
-        setSize(500, 400);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
-        setResizable(false);
-        setLayout(null);
+        setPreferredSize(new Dimension(500, 400)); // tamaño original de la ventana
+        setLayout(null);                           // posicionamiento manual
 
         // Extremo superior izquierdo: Ajustes
         btnAjustes = new JButton("Ajustes");
@@ -31,7 +36,7 @@ public class VentanaPrincipal extends JFrame {
         });
         add(btnMejoresJugadores);
 
-        // Título
+        // Título del juego
         JLabel lblTitulo = new JLabel("MEMORY GAME", SwingConstants.CENTER);
         lblTitulo.setFont(new Font("Arial", Font.BOLD, 30));
         lblTitulo.setBounds(100, 100, 300, 40);
@@ -52,8 +57,10 @@ public class VentanaPrincipal extends JFrame {
                     null, modos, modos[0]);
             if (opcion == 0) {
                 JOptionPane.showMessageDialog(this, "Aquí iniciaría el modo clásico (2 jugadores)");
+                if (alModoClasico != null) alModoClasico.run(); // Main muestra las matrices 6x6
             } else if (opcion == 1) {
                 JOptionPane.showMessageDialog(this, "Aquí iniciaría el modo patrones (1 jugador)");
+                if (alModoPatrones != null) alModoPatrones.run(); // Main muestra la matriz 5x5
             }
         });
         add(btnSeleccionModo);
@@ -64,9 +71,7 @@ public class VentanaPrincipal extends JFrame {
     public JButton getBtnMejoresJugadores() { return btnMejoresJugadores; }
     public JButton getBtnSeleccionModo() { return btnSeleccionModo; }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            new VentanaPrincipal().setVisible(true);
-        });
-    }
+    // Setter para que Main conecte la navegación
+    public void setAlModoClasico(Runnable accion) { this.alModoClasico = accion; }
+    public void setAlModoPatrones(Runnable accion) { this.alModoPatrones = accion; }
 }
