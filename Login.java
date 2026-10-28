@@ -3,12 +3,16 @@ import com.github.sarxos.webcam.WebcamPanel;
 import com.github.sarxos.webcam.WebcamResolution;
 
 import javax.swing.*;
+<<<<<<< HEAD
 <<<<<<< Updated upstream
+=======
+>>>>>>> origin/main
 import java.awt.*;
 import java.io.File;
 
 public class Login extends JFrame {
     private Webcam webcam = null;
+<<<<<<< HEAD
 =======
 import java.awt.Dimension;
 
@@ -23,6 +27,8 @@ public class Login extends JPanel {
     private Runnable alIniciarSesion; // se ejecuta después de "Iniciar Sesión"
     private Runnable alIrRegistro;    // se ejecuta al pulsar "Regístrate"
 >>>>>>> Stashed changes
+=======
+>>>>>>> origin/main
 
     public Login() {
         setPreferredSize(new Dimension(350, 280)); // tamaño original de la ventana
@@ -55,11 +61,15 @@ public class Login extends JPanel {
         });
         add(btnCredenciales);
 
+<<<<<<< HEAD
 <<<<<<< Updated upstream
         // --- BOTÓN DE LOGIN FACIAL CON CÁMARA REAL ---
 =======
         // Botón de login facial (mantiene su mensaje original)
 >>>>>>> Stashed changes
+=======
+        // --- BOTÓN DE LOGIN FACIAL CON CÁMARA REAL ---
+>>>>>>> origin/main
         JButton btnFacial = new JButton("Login Facial");
         btnFacial.setBounds(175, 115, 125, 30);
         btnFacial.addActionListener(e -> {
@@ -76,7 +86,10 @@ public class Login extends JPanel {
         add(btnIrRegistro);
     }
 
+<<<<<<< HEAD
 <<<<<<< Updated upstream
+=======
+>>>>>>> origin/main
     private void abrirVentanaReconocimientoFacial() {
         JFrame ventanaCamara = new JFrame("Reconocimiento Facial - Escaneando...");
         ventanaCamara.setSize(400, 350);
