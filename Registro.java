@@ -1,202 +1,165 @@
-import com.github.sarxos.webcam.Webcam;
-import com.github.sarxos.webcam.WebcamPanel;
-import com.github.sarxos.webcam.WebcamResolution;
-
-import javax.imageio.ImageIO;
 import javax.swing.*;
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
->>>>>>> origin/main
 import java.awt.*;
-import java.io.File;
-import java.io.IOException;
-
-public class Registro extends JFrame {
-    private Webcam webcam = null;
-
-    public Registro() {
-        setTitle("Registro de Nuevo Usuario con Cámara");
-        setSize(400, 450);
-        setLocationRelativeTo(null);
-        setLayout(null);
-=======
-import java.awt.Dimension;
+import java.awt.image.BufferedImage;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 
 /**
- * Pantalla de Registro de nuevo usuario.
- * Ahora es un JPanel (antes era un JFrame) para mostrarse en la ventana única.
+ * Pantalla de Registro con apartado de cámara.
+ * Es un JPanel para mostrarse dentro de la ventana única que crea Main.
+ * La cámara NO se enciende al crear el panel: Main llama a iniciarCamara()
+ * cuando se muestra esta pantalla. Al guardar o volver, el propio panel
+ * apaga la cámara antes de avisar a Main.
  */
 public class Registro extends JPanel {
 
-    // Acción de navegación que Main le asigna (reemplaza al antiguo dispose())
-    private Runnable alGuardar;
+    // Loaded reflectively so the project can compile even when the optional
+    // sarxos webcam library is not on the compile classpath.
+    private Object webcam = null;
+    private JPanel panelCamara;           // contenedor donde se dibuja la cámara en vivo
+    private BufferedImage rostroCapturado; // foto de referencia tomada de la cámara
+
+    private JTextField txtUsuario;
+    private JPasswordField txtPassword;
+
+    // Acciones de navegación que Main le asigna
+    private Runnable alGuardar; // Registro -> Login tras guardar
+    private Runnable alVolver;  // Registro -> Login sin guardar
 
     public Registro() {
-        setPreferredSize(new Dimension(350, 270)); // tamaño original de la ventana
-        setLayout(null);                           // posicionamiento manual
->>>>>>> Stashed changes
+        setPreferredSize(new Dimension(400, 450)); // mismo tamaño que Login
+        setLayout(null);
 
-        // Etiqueta y campo del nuevo usuario
         JLabel lblUsuario = new JLabel("Nuevo Usuario:");
         lblUsuario.setBounds(30, 20, 100, 25);
         add(lblUsuario);
 
-        JTextField txtUsuario = new JTextField();
+        txtUsuario = new JTextField();
         txtUsuario.setBounds(140, 20, 200, 25);
         add(txtUsuario);
 
-        // Etiqueta y campo de contraseña
         JLabel lblPassword = new JLabel("Contraseña:");
         lblPassword.setBounds(30, 60, 100, 25);
         add(lblPassword);
 
-        JPasswordField txtPassword = new JPasswordField();
+        txtPassword = new JPasswordField();
         txtPassword.setBounds(140, 60, 200, 25);
         add(txtPassword);
 
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
->>>>>>> origin/main
-        // Panel para mostrar la cámara en vivo
-        JPanel panelCamara = new JPanel();
-        panelCamara.setBounds(30, 100, 310, 230);
-        panelCamara.setLayout(new BorderLayout());
+        // Panel para mostrar la cámara en vivo (se llena en iniciarCamara())
+        panelCamara = new JPanel(new BorderLayout());
+        panelCamara.setBounds(30, 100, 310, 190);
         add(panelCamara);
-<<<<<<< HEAD
 
-        // Inicializar la webcam predeterminada de la PC
-        webcam = Webcam.getDefault();
-        if (webcam != null) {
-            webcam.setViewSize(WebcamResolution.VGA.getSize());
-            WebcamPanel webcamPanel = new WebcamPanel(webcam);
-            webcamPanel.setFPSDisplayed(true);
-            panelCamara.add(webcamPanel, BorderLayout.CENTER);
-            
-            // Hilo separado para iniciar la cámara sin congelar la ventana
-            Thread t = new Thread(() -> webcam.open());
-            t.setDaemon(true);
-            t.start();
-        } else {
-            JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-
-        JButton btnGuardar = new JButton("Capturar Rostro y Registrarse");
-        btnGuardar.setBounds(30, 350, 310, 30);
-        btnGuardar.addActionListener(e -> {
-            String usuario = txtUsuario.getText().trim();
-            if (usuario.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Escribe un nombre de usuario primero.");
-                return;
-            }
-
-            if (webcam != null && webcam.isOpen()) {
-                // Crear carpeta para guardar los rostros
-                File carpeta = new File("rostros_registrados");
-                if (!carpeta.exists()) {
-                    carpeta.mkdir();
-                }
-
-                // Tomar la foto actual de la cámara
-                java.awt.image.BufferedImage imagen = webcam.getImage();
-                File archivoSalida = new File(carpeta, usuario + ".jpg");
-
-                try {
-                    ImageIO.write(imagen, "JPG", archivoSalida);
-                    JOptionPane.showMessageDialog(this, "¡Rostro capturado y registrado con éxito para " + usuario + "!");
-                    
-                    // Apagar cámara antes de cerrar
-                    webcam.close();
-                    dispose();
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(this, "Error al guardar la foto: " + ex.getMessage());
-                }
-            } else {
-                JOptionPane.showMessageDialog(this, "La cámara no está activa.");
-            }
-=======
-        // Botón para registrar el rostro (mantiene su mensaje original)
         JButton btnCapturarRostro = new JButton("Registrar Rostro (Cámara)");
-        btnCapturarRostro.setBounds(30, 110, 270, 30);
+        btnCapturarRostro.setBounds(30, 300, 310, 30);
         btnCapturarRostro.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Aquí se abriría la cámara para tomar la foto de referencia");
+            if (camaraAbierta()) {
+                try {
+                    rostroCapturado = (BufferedImage) webcam.getClass().getMethod("getImage").invoke(webcam);
+                } catch (ReflectiveOperationException ex) {
+                    JOptionPane.showMessageDialog(this, "No se pudo capturar la imagen.",
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                JOptionPane.showMessageDialog(this, "Rostro capturado correctamente");
+            } else {
+                JOptionPane.showMessageDialog(this, "La cámara no está disponible todavía.",
+                        "Aviso", JOptionPane.WARNING_MESSAGE);
+            }
         });
         add(btnCapturarRostro);
 
-        // Botón de guardar: muestra el mensaje y vuelve a la pantalla anterior
         JButton btnGuardar = new JButton("Guardar Registro");
-        btnGuardar.setBounds(30, 160, 270, 30);
+        btnGuardar.setBounds(30, 345, 310, 30);
         btnGuardar.addActionListener(e -> {
             JOptionPane.showMessageDialog(this, "¡Usuario registrado con éxito!");
-            if (alGuardar != null) alGuardar.run(); // antes: dispose(); ahora Main vuelve al Login
->>>>>>> Stashed changes
-=======
-
-        // Inicializar la webcam predeterminada de la PC
-        webcam = Webcam.getDefault();
-        if (webcam != null) {
-            webcam.setViewSize(WebcamResolution.VGA.getSize());
-            WebcamPanel webcamPanel = new WebcamPanel(webcam);
-            webcamPanel.setFPSDisplayed(true);
-            panelCamara.add(webcamPanel, BorderLayout.CENTER);
-            
-            // Hilo separado para iniciar la cámara sin congelar la ventana
-            Thread t = new Thread(() -> webcam.open());
-            t.setDaemon(true);
-            t.start();
-        } else {
-            JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-
-        JButton btnGuardar = new JButton("Capturar Rostro y Registrarse");
-        btnGuardar.setBounds(30, 350, 310, 30);
-        btnGuardar.addActionListener(e -> {
-            String usuario = txtUsuario.getText().trim();
-            if (usuario.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Escribe un nombre de usuario primero.");
-                return;
-            }
-
-            if (webcam != null && webcam.isOpen()) {
-                // Crear carpeta para guardar los rostros
-                File carpeta = new File("rostros_registrados");
-                if (!carpeta.exists()) {
-                    carpeta.mkdir();
-                }
-
-                // Tomar la foto actual de la cámara
-                java.awt.image.BufferedImage imagen = webcam.getImage();
-                File archivoSalida = new File(carpeta, usuario + ".jpg");
-
-                try {
-                    ImageIO.write(imagen, "JPG", archivoSalida);
-                    JOptionPane.showMessageDialog(this, "¡Rostro capturado y registrado con éxito para " + usuario + "!");
-                    
-                    // Apagar cámara antes de cerrar
-                    webcam.close();
-                    dispose();
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(this, "Error al guardar la foto: " + ex.getMessage());
-                }
-            } else {
-                JOptionPane.showMessageDialog(this, "La cámara no está activa.");
-            }
->>>>>>> origin/main
+            detenerCamara(); // Main asume que la cámara ya se apagó
+            limpiarCampos();
+            if (alGuardar != null) alGuardar.run();
         });
         add(btnGuardar);
-        
-        // Asegurarse de apagar la cámara si cierran la ventana con la 'X'
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                if (webcam != null && webcam.isOpen()) {
-                    webcam.close();
-                }
-            }
+
+        JButton btnVolver = new JButton("Volver al Login");
+        btnVolver.setBounds(30, 390, 310, 30);
+        btnVolver.addActionListener(e -> {
+            detenerCamara(); // Main no apaga la cámara en este caso
+            limpiarCampos();
+            if (alVolver != null) alVolver.run();
         });
+        add(btnVolver);
     }
 
-    // Setter para que Main conecte la navegación
+    private void limpiarCampos() {
+        txtUsuario.setText("");
+        txtPassword.setText("");
+        rostroCapturado = null;
+    }
+
+    /** Enciende la cámara. Main lo llama cuando se muestra esta pantalla. */
+    public void iniciarCamara() {
+        if (webcam == null) {
+            try {
+                Class<?> webcamClass = Class.forName("com.github.sarxos.webcam.Webcam");
+                webcam = webcamClass.getMethod("getDefault").invoke(null);
+                if (webcam == null) {
+                    JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.",
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                webcamClass.getMethod("setViewSize", Dimension.class)
+                        .invoke(webcam, new Dimension(640, 480));
+
+                Class<?> webcamPanelClass = Class.forName("com.github.sarxos.webcam.WebcamPanel");
+                Constructor<?> constructor = webcamPanelClass.getConstructor(webcamClass, boolean.class);
+                Component webcamPanel = (Component) constructor.newInstance(webcam, false);
+                webcamPanelClass.getMethod("setFPSDisplayed", boolean.class).invoke(webcamPanel, true);
+                panelCamara.add(webcamPanel, BorderLayout.CENTER);
+                panelCamara.revalidate();
+            } catch (ReflectiveOperationException | LinkageError ex) {
+                JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
+        // Hilo separado para no congelar la ventana
+        if (!camaraAbierta()) {
+            Thread t = new Thread(() -> {
+                try {
+                    webcam.getClass().getMethod("open").invoke(webcam);
+                } catch (ReflectiveOperationException ex) {
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
+                            "No se pudo iniciar la cámara.", "Error", JOptionPane.ERROR_MESSAGE));
+                }
+            });
+            t.setDaemon(true);
+            t.start();
+        }
+    }
+
+    /** Apaga la cámara si está encendida. */
+    public void detenerCamara() {
+        if (camaraAbierta()) {
+            try {
+                webcam.getClass().getMethod("close").invoke(webcam);
+            } catch (ReflectiveOperationException ex) {
+                // Nothing else to do if the optional webcam library fails to close.
+            }
+        }
+    }
+
+    private boolean camaraAbierta() {
+        if (webcam == null) return false;
+        try {
+            Method isOpen = webcam.getClass().getMethod("isOpen");
+            return Boolean.TRUE.equals(isOpen.invoke(webcam));
+        } catch (ReflectiveOperationException ex) {
+            return false;
+        }
+    }
+
+    // Setters para que Main conecte la navegación
     public void setAlGuardar(Runnable accion) { this.alGuardar = accion; }
+    public void setAlVolver(Runnable accion) { this.alVolver = accion; }
 }
