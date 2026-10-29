@@ -1,5 +1,5 @@
-import javax.swing.*;
 import java.awt.*;
+import javax.swing.*;
 
 /**
  * Clase principal: crea la ÚNICA ventana del programa, instancia todas las
@@ -22,7 +22,8 @@ public class Main {
             // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
             ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            ventana.setSize(700, 540); // alto suficiente para la pantalla de Registro con cámara
+            ventana.getContentPane().setPreferredSize(new Dimension(960, 540));
+            ventana.pack();
             ventana.setLocationRelativeTo(null);
             ventana.setResizable(false);
 
