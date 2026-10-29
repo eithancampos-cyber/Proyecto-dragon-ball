@@ -22,6 +22,7 @@ public class Main {
             // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
             ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            // Área útil de la ventana: 960x540, el mismo tamaño de las pantallas con fondo.
             ventana.getContentPane().setPreferredSize(new Dimension(960, 540));
             ventana.pack();
             ventana.setLocationRelativeTo(null);
@@ -46,25 +47,10 @@ public class Main {
             contenedor.add(centrar(patrones), PATRONES);
 
             // --- Navegación entre pantallas ---
-            // La cámara la usan Login y Registro, pero solo una pantalla a la vez:
-            // se apaga la de la pantalla que se deja y se enciende la de la que se muestra.
-            login.setAlIrRegistro(() -> {                                            // Login -> Registro
-                login.detenerCamara();
-                cartas.show(contenedor, REGISTRO);
-                registro.iniciarCamara();
-            });
-            registro.setAlGuardar(() -> {                                            // Registro -> Login (la cámara de Registro ya se apagó)
-                cartas.show(contenedor, LOGIN);
-                login.iniciarCamara();
-            });
-            registro.setAlVolver(() -> {                                             // Registro -> Login sin guardar
-                cartas.show(contenedor, LOGIN);
-                login.iniciarCamara();
-            });
-            login.setAlIniciarSesion(() -> {                                         // Login -> Menú
-                login.detenerCamara();
-                cartas.show(contenedor, MENU);
-            });
+            login.setAlIrRegistro(() -> cartas.show(contenedor, REGISTRO));          // Login -> Registro
+            registro.setAlGuardar(() -> cartas.show(contenedor, LOGIN));             // Registro -> Login (tras guardar)
+            registro.setAlVolver(() -> cartas.show(contenedor, LOGIN));              // Registro -> Login sin guardar
+            login.setAlIniciarSesion(() -> cartas.show(contenedor, MENU));           // Login -> Menú
             menu.setAlModoClasico(() -> cartas.show(contenedor, MATRICES));          // Menú -> Matrices (clásico)
             menu.setAlModoPatrones(() -> cartas.show(contenedor, PATRONES));         // Menú -> Matriz 5x5 (patrones)
             matrices.setAlVolver(() -> cartas.show(contenedor, MENU));               // Matrices -> Menú
@@ -74,7 +60,6 @@ public class Main {
             ventana.add(contenedor);
             cartas.show(contenedor, LOGIN); // la primera pantalla es el Login
             ventana.setVisible(true);
-            login.iniciarCamara(); // enciende la cámara de la primera pantalla (Login)
         });
     }
 

@@ -1,184 +1,163 @@
 import java.awt.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.io.File;
 import java.net.URL;
 import javax.swing.*;
 
 /**
- * Pantalla de Login con apartado de cámara, estilo visual Dragon Ball y fondo ajustado.
+ * Pantalla de Login con estilo visual Dragon Ball y fondo ajustado.
+ * Todos los elementos comparten el mismo bloque centrado (mismo borde izquierdo y derecho).
  */
 public class Login extends JPanel {
 
-    private static final int ANCHO = 700;
-    private static final int ALTO = 540;
+    private static final int ANCHO = 960, ALTO = 540;
 
-    private Object webcam = null;
-    private JPanel panelCamara; // Contenedor donde se dibuja la cámara en vivo
-
-    private Runnable alIniciarSesion; 
-    private Runnable alIrRegistro;    
+    private Runnable alIniciarSesion, alIrRegistro; // navegación que Main le asigna
 
     public Login() {
         setPreferredSize(new Dimension(ANCHO, ALTO));
         setLayout(null);
 
-        // --- Panel de Fondo ---
         PanelFondo fondo = new PanelFondo(cargarImagen("fondo2.jpg"));
         fondo.setBounds(0, 0, ANCHO, ALTO);
         fondo.setLayout(null);
         add(fondo);
 
-        // Eje X central para alinear de forma simétrica en la ventana de 700px
-        int xCentro = 175;
-        // Bajamos el bloque general un poco más hacia el centro de la pantalla
-        int yBase = 60; 
+        // Bloque centrado: todo se alinea a los mismos bordes izquierdo y derecho
+        int anchoBloque = 360, separacion = 16;
+        int izq = (ANCHO - anchoBloque) / 2;
+        int y = 175; // inicio vertical (bloque centrado en la altura)
+        int mitad = (anchoBloque - separacion) / 2;
 
-        // Etiqueta Usuario
-        JLabel lblUsuario = new JLabel("Usuario:");
-        lblUsuario.setForeground(Color.WHITE);
-        lblUsuario.setFont(new Font("Arial", Font.BOLD, 14));
-        lblUsuario.setBounds(xCentro, yBase, 100, 25);
-        fondo.add(lblUsuario);
+        agregarFila(fondo, "Usuario:", new CampoTexto(), izq, y, anchoBloque);
+        agregarFila(fondo, "Contraseña:", new CampoClave(), izq, y + 46, anchoBloque);
 
-        JTextField txtUsuario = new JTextField();
-        txtUsuario.setBounds(xCentro + 90, yBase, 260, 30);
-        fondo.add(txtUsuario);
-
-        // Etiqueta Contraseña
-        JLabel lblPassword = new JLabel("Contraseña:");
-        lblPassword.setForeground(Color.WHITE);
-        lblPassword.setFont(new Font("Arial", Font.BOLD, 14));
-        lblPassword.setBounds(xCentro, yBase + 40, 100, 25);
-        fondo.add(lblPassword);
-
-        JPasswordField txtPassword = new JPasswordField();
-        txtPassword.setBounds(xCentro + 90, yBase + 40, 260, 30);
-        fondo.add(txtPassword);
-
-        // Panel para mostrar la cámara en vivo
-        panelCamara = new JPanel();
-        panelCamara.setBounds(xCentro + 30, yBase + 85, 290, 180);
-        panelCamara.setLayout(new BorderLayout());
-        panelCamara.setOpaque(false);
-        fondo.add(panelCamara);
-
-        // Botones temáticos usando BotonDragonBall
-        JButton btnCredenciales = new BotonDragonBall("Iniciar Sesión");
-        btnCredenciales.setBounds(xCentro + 20, yBase + 275, 145, 38);
-        btnCredenciales.setFont(new Font("Arial", Font.BOLD, 13));
-        btnCredenciales.addActionListener(e -> {
+        y += 104; // debajo de las dos filas (46 + 34 de alto + 24 de aire)
+        fondo.add(crearBoton("Iniciar Sesión", izq, y, mitad, () -> {
             JOptionPane.showMessageDialog(this, "Aquí validaría las credenciales");
             if (alIniciarSesion != null) alIniciarSesion.run();
-        });
-        fondo.add(btnCredenciales);
-
-        JButton btnFacial = new BotonDragonBall("Login Facial");
-        btnFacial.setBounds(xCentro + 175, yBase + 275, 145, 38);
-        btnFacial.setFont(new Font("Arial", Font.BOLD, 13));
-        btnFacial.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Aquí abriría la cámara para el reconocimiento facial");
-        });
-        fondo.add(btnFacial);
-
-        JButton btnIrRegistro = new BotonDragonBall("¿No tienes cuenta? Regístrate");
-        btnIrRegistro.setBounds(xCentro + 20, yBase + 322, 300, 38);
-        btnIrRegistro.setFont(new Font("Arial", Font.BOLD, 13));
-        btnIrRegistro.addActionListener(e -> {
+        }));
+        fondo.add(crearBoton("Login Facial", izq + mitad + separacion, y, mitad, () ->
+            JOptionPane.showMessageDialog(this, "Aquí abriría la cámara para el reconocimiento facial")));
+        fondo.add(crearBoton("¿No tienes cuenta? Regístrate", izq, y + 48, anchoBloque, () -> {
             if (alIrRegistro != null) alIrRegistro.run();
-        });
-        fondo.add(btnIrRegistro);
+        }));
     }
 
-    /** Enciende la cámara. */
-    public void iniciarCamara() {
-        if (webcam == null) {
-            try {
-                Class<?> webcamClass = Class.forName("com.github.sarxos.webcam.Webcam");
-                webcam = webcamClass.getMethod("getDefault").invoke(null);
-                if (webcam == null) {
-                    JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.", "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-
-                Class<?> resolutionClass = Class.forName("com.github.sarxos.webcam.WebcamResolution");
-                Object vga = resolutionClass.getField("VGA").get(null);
-                Dimension size = (Dimension) resolutionClass.getMethod("getSize").invoke(vga);
-                webcamClass.getMethod("setViewSize", Dimension.class).invoke(webcam, size);
-
-                Class<?> webcamPanelClass = Class.forName("com.github.sarxos.webcam.WebcamPanel");
-                JPanel webcamPanel = (JPanel) webcamPanelClass
-                        .getConstructor(webcamClass).newInstance(webcam);
-                webcamPanelClass.getMethod("setFPSDisplayed", boolean.class).invoke(webcamPanel, true);
-                
-                webcamPanel.setOpaque(false);
-                panelCamara.add(webcamPanel, BorderLayout.CENTER);
-                panelCamara.revalidate();
-            } catch (ReflectiveOperationException | LinkageError ex) {
-                webcam = null;
-                JOptionPane.showMessageDialog(this,
-                        "La cámara requiere la biblioteca webcam-capture en el classpath.",
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-
-        try {
-            boolean isOpen = (Boolean) webcam.getClass().getMethod("isOpen").invoke(webcam);
-            if (!isOpen) {
-                Thread t = new Thread(() -> {
-                    try {
-                        webcam.getClass().getMethod("open").invoke(webcam);
-                    } catch (ReflectiveOperationException ex) {
-                        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
-                                "No se pudo iniciar la cámara.", "Error", JOptionPane.ERROR_MESSAGE));
-                    }
-                });
-                t.setDaemon(true);
-                t.start();
-            }
-        } catch (ReflectiveOperationException ex) {
-            JOptionPane.showMessageDialog(this, "No se pudo iniciar la cámara.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
+    /** Agrega una fila "etiqueta + campo"; el campo termina justo en el borde derecho del bloque. */
+    private static void agregarFila(JPanel destino, String texto, JTextField campo, int izq, int y, int anchoBloque) {
+        int anchoEtiqueta = 115;
+        EtiquetaDragonBall etiqueta = new EtiquetaDragonBall(texto);
+        etiqueta.setBounds(izq, y, anchoEtiqueta, 34);
+        campo.setBounds(izq + anchoEtiqueta + 5, y, anchoBloque - anchoEtiqueta - 5, 34);
+        destino.add(etiqueta);
+        destino.add(campo);
     }
 
-    /** Apaga la cámara si está encendida. */
-    public void detenerCamara() {
-        if (webcam != null) {
-            try {
-                boolean isOpen = (Boolean) webcam.getClass().getMethod("isOpen").invoke(webcam);
-                if (isOpen) webcam.getClass().getMethod("close").invoke(webcam);
-            } catch (ReflectiveOperationException ex) {
-                // Ignore shutdown errors
-            }
-        }
+    /** Crea un botón Dragon Ball de 38 px de alto con su acción. */
+    private static JButton crearBoton(String texto, int x, int y, int ancho, Runnable accion) {
+        JButton boton = new BotonDragonBall(texto);
+        boton.setBounds(x, y, ancho, 38);
+        boton.setFont(new Font("Arial", Font.BOLD, 13));
+        boton.addActionListener(e -> accion.run());
+        return boton;
     }
 
-    private Image cargarImagen(String nombre) {
-        URL url = getClass().getResource("/" + nombre);
-        if (url != null) {
-            return new ImageIcon(url).getImage();
-        }
-        String[] rutas = {nombre, "Proyecto-dragon-ball/" + nombre, "src/" + nombre};
-        for (String ruta : rutas) {
-            if (new File(ruta).exists()) {
-                return new ImageIcon(ruta).getImage();
-            }
+    /** Carga una imagen del classpath o de la carpeta del proyecto (también la usan Registro y MatrizPatrones). */
+    static Image cargarImagen(String nombre) {
+        URL url = Login.class.getResource("/" + nombre);
+        if (url != null) return new ImageIcon(url).getImage();
+        for (String ruta : new String[]{nombre, "Proyecto-dragon-ball/" + nombre, "src/" + nombre}) {
+            if (new File(ruta).exists()) return new ImageIcon(ruta).getImage();
         }
         System.err.println("No se encontró la imagen de fondo: " + nombre);
         return null;
     }
 
-    private static class PanelFondo extends JPanel {
+    // ------------------------------------------------------------------
+    // Componentes con el estilo Dragon Ball (los colores vienen de BotonDragonBall)
+    // ------------------------------------------------------------------
+
+    private static final Color CREMA = new Color(255, 246, 205);
+
+    /** Dibuja el fondo redondeado con borde negro grueso (naranja si tiene el foco). */
+    private static void pintarCampo(Graphics g, JComponent c) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(CREMA);
+        g2.fillRoundRect(0, 0, c.getWidth() - 1, c.getHeight() - 1, 22, 22);
+        g2.setColor(c.isFocusOwner() ? BotonDragonBall.NARANJA : Color.BLACK);
+        g2.setStroke(new BasicStroke(3f));
+        g2.drawRoundRect(1, 1, c.getWidth() - 3, c.getHeight() - 3, 22, 22);
+        g2.dispose();
+    }
+
+    /** Aplica fuente, colores y margen internos comunes a los campos. */
+    private static void estilizarCampo(JTextField campo) {
+        campo.setOpaque(false); // el fondo lo pinta pintarCampo
+        campo.setFont(new Font("Arial", Font.BOLD, 14));
+        campo.setForeground(BotonDragonBall.CAFE_OSCURO);
+        campo.setCaretColor(BotonDragonBall.CAFE_OSCURO);
+        campo.setSelectionColor(BotonDragonBall.AMARILLO);
+        campo.setSelectedTextColor(BotonDragonBall.CAFE_OSCURO);
+        campo.setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
+        campo.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) { campo.repaint(); }
+            @Override public void focusLost(FocusEvent e) { campo.repaint(); }
+        });
+    }
+
+    /** Campo de usuario con estilo Dragon Ball. */
+    static class CampoTexto extends JTextField {
+        CampoTexto() { estilizarCampo(this); }
+        @Override protected void paintComponent(Graphics g) { pintarCampo(g, this); super.paintComponent(g); }
+    }
+
+    /** Campo de contraseña con estilo Dragon Ball. */
+    static class CampoClave extends JPasswordField {
+        CampoClave() { estilizarCampo(this); }
+        @Override protected void paintComponent(Graphics g) { pintarCampo(g, this); super.paintComponent(g); }
+    }
+
+    /** Etiqueta amarilla con contorno negro grueso, como las letras del anime. */
+    static class EtiquetaDragonBall extends JLabel {
+        EtiquetaDragonBall(String texto) {
+            super(texto);
+            setFont(new Font("Arial", Font.BOLD, 17));
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setFont(getFont());
+            FontMetrics fm = g2.getFontMetrics();
+            int x = 3; // deja espacio para el contorno
+            int y = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+
+            g2.setColor(Color.BLACK); // contorno: el texto desplazado en todas las direcciones
+            for (int dx = -2; dx <= 2; dx++)
+                for (int dy = -2; dy <= 2; dy++)
+                    if (dx != 0 || dy != 0) g2.drawString(getText(), x + dx, y + dy);
+
+            g2.setColor(BotonDragonBall.AMARILLO); // relleno encima
+            g2.drawString(getText(), x, y);
+            g2.dispose();
+        }
+    }
+
+    /** Panel que estira la imagen a todo su tamaño (o pinta un color liso si no hay imagen). */
+    static class PanelFondo extends JPanel {
         private final Image imagen;
 
-        PanelFondo(Image imagen) {
-            this.imagen = imagen;
-        }
+        PanelFondo(Image imagen) { this.imagen = imagen; }
 
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             if (imagen != null) {
-                // Asegura que la imagen estire exactamente a todo el ancho y alto del panel (700x540)
                 g.drawImage(imagen, 0, 0, getWidth(), getHeight(), this);
             } else {
                 g.setColor(new Color(26, 16, 40));

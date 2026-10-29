@@ -1,162 +1,100 @@
-import javax.swing.*;
 import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
+import javax.swing.*;
 
 /**
- * Pantalla de Registro con apartado de cámara.
+ * Pantalla de Registro con estilo Dragon Ball y fondo fondo6.jpg.
  * Es un JPanel para mostrarse dentro de la ventana única que crea Main.
- * La cámara NO se enciende al crear el panel: Main llama a iniciarCamara()
- * cuando se muestra esta pantalla. Al guardar o volver, el propio panel
- * apaga la cámara antes de avisar a Main.
+ * El formulario va a la izquierda para no tapar a los personajes del fondo.
  */
 public class Registro extends JPanel {
 
-    // Loaded reflectively so the project can compile even when the optional
-    // sarxos webcam library is not on the compile classpath.
-    private Object webcam = null;
-    private JPanel panelCamara;           // contenedor donde se dibuja la cámara en vivo
-    private BufferedImage rostroCapturado; // foto de referencia tomada de la cámara
+    private static final int ANCHO = 960;
+    private static final int ALTO = 540;
 
-    private JTextField txtUsuario;
-    private JPasswordField txtPassword;
+    private Login.CampoTexto txtUsuario;
+    private Login.CampoClave txtPassword;
 
     // Acciones de navegación que Main le asigna
     private Runnable alGuardar; // Registro -> Login tras guardar
     private Runnable alVolver;  // Registro -> Login sin guardar
 
     public Registro() {
-        setPreferredSize(new Dimension(400, 450)); // mismo tamaño que Login
+        setPreferredSize(new Dimension(ANCHO, ALTO));
         setLayout(null);
 
-        JLabel lblUsuario = new JLabel("Nuevo Usuario:");
-        lblUsuario.setBounds(30, 20, 100, 25);
-        add(lblUsuario);
+        // --- Panel de Fondo (reutiliza el de Login) ---
+        Login.PanelFondo fondo = new Login.PanelFondo(Login.cargarImagen("fondo6.jpg"));
+        fondo.setBounds(0, 0, ANCHO, ALTO);
+        fondo.setLayout(null);
+        add(fondo);
 
-        txtUsuario = new JTextField();
-        txtUsuario.setBounds(140, 20, 200, 25);
-        add(txtUsuario);
+        // --- Medidas del bloque: todo se alinea a estos bordes ---
+        int anchoBloque = 400;
+        int izq = 59;  // bloque centrado en la zona izquierda libre del fondo
+        int y = 151;   // inicio vertical (el bloque queda centrado en la altura)
 
-        JLabel lblPassword = new JLabel("Contraseña:");
-        lblPassword.setBounds(30, 60, 100, 25);
-        add(lblPassword);
+        int anchoEtiqueta = 150;
+        int anchoCampo = anchoBloque - anchoEtiqueta - 5; // el campo termina en el borde derecho
+        int altoFila = 34;
+        int separacionFilas = 12;
 
-        txtPassword = new JPasswordField();
-        txtPassword.setBounds(140, 60, 200, 25);
-        add(txtPassword);
+        // Fila Nuevo Usuario
+        Login.EtiquetaDragonBall lblUsuario = new Login.EtiquetaDragonBall("Nuevo Usuario:");
+        lblUsuario.setBounds(izq, y, anchoEtiqueta, altoFila);
+        fondo.add(lblUsuario);
 
-        // Panel para mostrar la cámara en vivo (se llena en iniciarCamara())
-        panelCamara = new JPanel(new BorderLayout());
-        panelCamara.setBounds(30, 100, 310, 190);
-        add(panelCamara);
+        txtUsuario = new Login.CampoTexto();
+        txtUsuario.setBounds(izq + anchoEtiqueta + 5, y, anchoCampo, altoFila);
+        fondo.add(txtUsuario);
 
-        JButton btnCapturarRostro = new JButton("Registrar Rostro (Cámara)");
-        btnCapturarRostro.setBounds(30, 300, 310, 30);
+        // Fila Contraseña
+        y += altoFila + separacionFilas;
+        Login.EtiquetaDragonBall lblPassword = new Login.EtiquetaDragonBall("Contraseña:");
+        lblPassword.setBounds(izq, y, anchoEtiqueta, altoFila);
+        fondo.add(lblPassword);
+
+        txtPassword = new Login.CampoClave();
+        txtPassword.setBounds(izq + anchoEtiqueta + 5, y, anchoCampo, altoFila);
+        fondo.add(txtPassword);
+
+        // Botones: misma altura y mismos bordes izquierdo/derecho
+        int altoBoton = 38;
+        int separacionBotones = 10;
+        y += altoFila + 24;
+
+        JButton btnCapturarRostro = new BotonDragonBall("Registrar Rostro (Cámara)");
+        btnCapturarRostro.setBounds(izq, y, anchoBloque, altoBoton);
+        btnCapturarRostro.setFont(new Font("Arial", Font.BOLD, 13));
         btnCapturarRostro.addActionListener(e -> {
-            if (camaraAbierta()) {
-                try {
-                    rostroCapturado = (BufferedImage) webcam.getClass().getMethod("getImage").invoke(webcam);
-                } catch (ReflectiveOperationException ex) {
-                    JOptionPane.showMessageDialog(this, "No se pudo capturar la imagen.",
-                            "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                JOptionPane.showMessageDialog(this, "Rostro capturado correctamente");
-            } else {
-                JOptionPane.showMessageDialog(this, "La cámara no está disponible todavía.",
-                        "Aviso", JOptionPane.WARNING_MESSAGE);
-            }
+            JOptionPane.showMessageDialog(this, "Aquí se abriría la cámara para tomar la foto de referencia");
         });
-        add(btnCapturarRostro);
+        fondo.add(btnCapturarRostro);
 
-        JButton btnGuardar = new JButton("Guardar Registro");
-        btnGuardar.setBounds(30, 345, 310, 30);
+        y += altoBoton + separacionBotones;
+        JButton btnGuardar = new BotonDragonBall("Guardar Registro");
+        btnGuardar.setBounds(izq, y, anchoBloque, altoBoton);
+        btnGuardar.setFont(new Font("Arial", Font.BOLD, 13));
         btnGuardar.addActionListener(e -> {
             JOptionPane.showMessageDialog(this, "¡Usuario registrado con éxito!");
-            detenerCamara(); // Main asume que la cámara ya se apagó
             limpiarCampos();
             if (alGuardar != null) alGuardar.run();
         });
-        add(btnGuardar);
+        fondo.add(btnGuardar);
 
-        JButton btnVolver = new JButton("Volver al Login");
-        btnVolver.setBounds(30, 390, 310, 30);
+        y += altoBoton + separacionBotones;
+        JButton btnVolver = new BotonDragonBall("Volver al Login");
+        btnVolver.setBounds(izq, y, anchoBloque, altoBoton);
+        btnVolver.setFont(new Font("Arial", Font.BOLD, 13));
         btnVolver.addActionListener(e -> {
-            detenerCamara(); // Main no apaga la cámara en este caso
             limpiarCampos();
             if (alVolver != null) alVolver.run();
         });
-        add(btnVolver);
+        fondo.add(btnVolver);
     }
 
     private void limpiarCampos() {
         txtUsuario.setText("");
         txtPassword.setText("");
-        rostroCapturado = null;
-    }
-
-    /** Enciende la cámara. Main lo llama cuando se muestra esta pantalla. */
-    public void iniciarCamara() {
-        if (webcam == null) {
-            try {
-                Class<?> webcamClass = Class.forName("com.github.sarxos.webcam.Webcam");
-                webcam = webcamClass.getMethod("getDefault").invoke(null);
-                if (webcam == null) {
-                    JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.",
-                            "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                webcamClass.getMethod("setViewSize", Dimension.class)
-                        .invoke(webcam, new Dimension(640, 480));
-
-                Class<?> webcamPanelClass = Class.forName("com.github.sarxos.webcam.WebcamPanel");
-                Constructor<?> constructor = webcamPanelClass.getConstructor(webcamClass, boolean.class);
-                Component webcamPanel = (Component) constructor.newInstance(webcam, false);
-                webcamPanelClass.getMethod("setFPSDisplayed", boolean.class).invoke(webcamPanel, true);
-                panelCamara.add(webcamPanel, BorderLayout.CENTER);
-                panelCamara.revalidate();
-            } catch (ReflectiveOperationException | LinkageError ex) {
-                JOptionPane.showMessageDialog(this, "No se encontró ninguna cámara web.",
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-
-        // Hilo separado para no congelar la ventana
-        if (!camaraAbierta()) {
-            Thread t = new Thread(() -> {
-                try {
-                    webcam.getClass().getMethod("open").invoke(webcam);
-                } catch (ReflectiveOperationException ex) {
-                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
-                            "No se pudo iniciar la cámara.", "Error", JOptionPane.ERROR_MESSAGE));
-                }
-            });
-            t.setDaemon(true);
-            t.start();
-        }
-    }
-
-    /** Apaga la cámara si está encendida. */
-    public void detenerCamara() {
-        if (camaraAbierta()) {
-            try {
-                webcam.getClass().getMethod("close").invoke(webcam);
-            } catch (ReflectiveOperationException ex) {
-                // Nothing else to do if the optional webcam library fails to close.
-            }
-        }
-    }
-
-    private boolean camaraAbierta() {
-        if (webcam == null) return false;
-        try {
-            Method isOpen = webcam.getClass().getMethod("isOpen");
-            return Boolean.TRUE.equals(isOpen.invoke(webcam));
-        } catch (ReflectiveOperationException ex) {
-            return false;
-        }
     }
 
     // Setters para que Main conecte la navegación
