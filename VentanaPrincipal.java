@@ -1,77 +1,116 @@
-import java.awt.Dimension;
-import java.awt.Font;
+import java.awt.*;
+import java.io.File;
+import java.net.URL;
 import javax.swing.*;
 
-/**
- * Menú principal del Memory Game.
- * Ahora es un JPanel (antes era un JFrame) para mostrarse en la ventana única.
- */
-public class VentanaPrincipal extends JPanel {
+public class VentanaPrincipal extends JFrame {
+
+    // Misma proporción 16:9 de la imagen
+    private static final int ANCHO = 960;
+    private static final int ALTO = 540;
 
     private final JButton btnAjustes;
     private final JButton btnMejoresJugadores;
-    private final JButton btnSeleccionModo;
+    private final JButton btnModoClasico;
+    private final JButton btnModoPatrones;
 
-    // Acciones de navegación que Main le asigna (una por cada modo de juego)
-    private Runnable alModoClasico;   // se ejecuta tras elegir "Modo Clásico"
-    private Runnable alModoPatrones;  // se ejecuta tras elegir "Modo Patrones"
+    // Estado visual de la música (solo visual por ahora)
+    private boolean musicaActiva = true;
 
     public VentanaPrincipal() {
-        setPreferredSize(new Dimension(500, 400)); // tamaño original de la ventana
-        setLayout(null);                           // posicionamiento manual
+        setTitle("Dragon Ball Super - Memory Game");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setResizable(false);
+
+        PanelFondo fondo = new PanelFondo(cargarImagen("fondo.jpg"));
+        fondo.setPreferredSize(new Dimension(ANCHO, ALTO));
+        fondo.setLayout(null);
+        setContentPane(fondo);
 
         // Extremo superior izquierdo: Ajustes
-        btnAjustes = new JButton("Ajustes");
-        btnAjustes.setBounds(15, 15, 110, 30);
+        btnAjustes = new BotonDragonBall("Ajustes");
+        btnAjustes.setBounds(15, 15, 130, 40);
         btnAjustes.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Aquí se abrirían los ajustes (sonido, etc.)");
+            VentanaAjustes ajustes = new VentanaAjustes(this, musicaActiva);
+            ajustes.setVisible(true);
+            musicaActiva = ajustes.isMusicaActiva();
         });
-        add(btnAjustes);
+        fondo.add(btnAjustes);
 
         // Extremo superior derecho: Mejores jugadores
-        btnMejoresJugadores = new JButton("Mejores Jugadores");
-        btnMejoresJugadores.setBounds(320, 15, 150, 30);
+        btnMejoresJugadores = new BotonDragonBall("Mejores Jugadores");
+        btnMejoresJugadores.setBounds(ANCHO - 195, 15, 180, 40);
         btnMejoresJugadores.addActionListener(e -> {
             JOptionPane.showMessageDialog(this, "Aquí se mostraría el top 5 con sus premios");
         });
-        add(btnMejoresJugadores);
+        fondo.add(btnMejoresJugadores);
 
-        // Título del juego
-        JLabel lblTitulo = new JLabel("MEMORY GAME", SwingConstants.CENTER);
-        lblTitulo.setFont(new Font("Arial", Font.BOLD, 30));
-        lblTitulo.setBounds(100, 100, 300, 40);
-        add(lblTitulo);
-
-        // Centro: Selección de modo
-        btnSeleccionModo = new JButton("Selección de Modo");
-        btnSeleccionModo.setBounds(150, 190, 200, 50);
-        btnSeleccionModo.setFont(new Font("Arial", Font.BOLD, 14));
-        btnSeleccionModo.addActionListener(e -> {
-            String[] modos = {"Modo Clásico", "Modo Patrones"};
-            int opcion = JOptionPane.showOptionDialog(
-                    this,
-                    "Elige un modo de juego",
-                    "Selección de Modo",
-                    JOptionPane.DEFAULT_OPTION,
-                    JOptionPane.QUESTION_MESSAGE,
-                    null, modos, modos[0]);
-            if (opcion == 0) {
-                JOptionPane.showMessageDialog(this, "Aquí iniciaría el modo clásico (2 jugadores)");
-                if (alModoClasico != null) alModoClasico.run(); // Main muestra las matrices 6x6
-            } else if (opcion == 1) {
-                JOptionPane.showMessageDialog(this, "Aquí iniciaría el modo patrones (1 jugador)");
-                if (alModoPatrones != null) alModoPatrones.run(); // Main muestra la matriz 5x5
-            }
+        // Centro: botones de modo, lado a lado
+        btnModoClasico = new BotonDragonBall("Modo Clásico");
+        btnModoClasico.setFont(new Font("Arial", Font.BOLD, 20));
+        btnModoClasico.setBounds(225, 400, 240, 60);
+        btnModoClasico.addActionListener(e -> {
+            JOptionPane.showMessageDialog(this, "Aquí iniciaría el modo clásico (2 jugadores)");
         });
-        add(btnSeleccionModo);
+        fondo.add(btnModoClasico);
+
+        btnModoPatrones = new BotonDragonBall("Modo Patrones");
+        btnModoPatrones.setFont(new Font("Arial", Font.BOLD, 20));
+        btnModoPatrones.setBounds(495, 400, 240, 60);
+        btnModoPatrones.addActionListener(e -> {
+            JOptionPane.showMessageDialog(this, "Aquí iniciaría el modo patrones (1 jugador)");
+        });
+        fondo.add(btnModoPatrones);
+
+        pack();
+        setLocationRelativeTo(null);
     }
 
-    // Getters para que el controlador pueda asignar los listeners (MVC)
+    // Getters para que el controlador asigne los listeners (MVC)
     public JButton getBtnAjustes() { return btnAjustes; }
     public JButton getBtnMejoresJugadores() { return btnMejoresJugadores; }
-    public JButton getBtnSeleccionModo() { return btnSeleccionModo; }
+    public JButton getBtnModoClasico() { return btnModoClasico; }
+    public JButton getBtnModoPatrones() { return btnModoPatrones; }
 
-    // Setter para que Main conecte la navegación
-    public void setAlModoClasico(Runnable accion) { this.alModoClasico = accion; }
-    public void setAlModoPatrones(Runnable accion) { this.alModoPatrones = accion; }
+    // Busca la imagen como recurso y, si no, en rutas comunes del proyecto
+    private Image cargarImagen(String nombre) {
+        URL url = getClass().getResource("/" + nombre);
+        if (url != null) {
+            return new ImageIcon(url).getImage();
+        }
+        String[] rutas = {nombre, "Proyecto-dragon-ball/" + nombre, "src/" + nombre};
+        for (String ruta : rutas) {
+            if (new File(ruta).exists()) {
+                return new ImageIcon(ruta).getImage();
+            }
+        }
+        System.err.println("No se encontró la imagen de fondo: " + nombre);
+        return null;
+    }
+
+    // Panel que dibuja la imagen escalada al tamaño de la ventana
+    private static class PanelFondo extends JPanel {
+        private final Image imagen;
+
+        PanelFondo(Image imagen) {
+            this.imagen = imagen;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (imagen != null) {
+                g.drawImage(imagen, 0, 0, getWidth(), getHeight(), this);
+            } else {
+                g.setColor(new Color(26, 16, 40));
+                g.fillRect(0, 0, getWidth(), getHeight());
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            new VentanaPrincipal().setVisible(true);
+        });
+    }
 }
