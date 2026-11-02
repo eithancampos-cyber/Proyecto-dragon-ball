@@ -26,6 +26,7 @@ public class VentanaPrincipal extends JPanel {
     // Acciones de navegación que Main le asigna
     private Runnable alModoClasico;
     private Runnable alModoPatrones;
+    private Runnable alCerrarSesion; // NUEVO: Acción para volver al Login
 
     public VentanaPrincipal() {
         fondo = cargarImagen("fondo.jpg");
@@ -40,7 +41,15 @@ public class VentanaPrincipal extends JPanel {
             JFrame padre = (ventana instanceof JFrame) ? (JFrame) ventana : null;
             VentanaAjustes ajustes = new VentanaAjustes(padre, musicaActiva);
             ajustes.setVisible(true);
+            
             musicaActiva = ajustes.isMusicaActiva();
+
+            // NUEVO: Verificamos si el usuario confirmó cerrar sesión en los ajustes
+            if (ajustes.isCerrarSesionSolicitado()) {
+                if (alCerrarSesion != null) {
+                    alCerrarSesion.run();
+                }
+            }
         });
         add(btnAjustes);
 
@@ -73,6 +82,7 @@ public class VentanaPrincipal extends JPanel {
     // Setters para que Main conecte la navegación
     public void setAlModoClasico(Runnable accion) { this.alModoClasico = accion; }
     public void setAlModoPatrones(Runnable accion) { this.alModoPatrones = accion; }
+    public void setAlCerrarSesion(Runnable accion) { this.alCerrarSesion = accion; } // NUEVO
 
     // Getters (MVC)
     public JButton getBtnAjustes() { return btnAjustes; }

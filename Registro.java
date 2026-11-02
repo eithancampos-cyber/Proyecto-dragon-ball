@@ -2,9 +2,7 @@ import java.awt.*;
 import javax.swing.*;
 
 /**
- * Pantalla de Registro con estilo Dragon Ball y fondo fondo6.jpg.
- * Es un JPanel para mostrarse dentro de la ventana única que crea Main.
- * El formulario va a la izquierda para no tapar a los personajes del fondo.
+ * Pantalla de Registro con Confirmación de contraseña en español, botones de ojo y captura facial.
  */
 public class Registro extends JPanel {
 
@@ -13,30 +11,29 @@ public class Registro extends JPanel {
 
     private Login.CampoTexto txtUsuario;
     private Login.CampoClave txtPassword;
+    private Login.CampoClave txtConfirmPassword;
 
-    // Acciones de navegación que Main le asigna
-    private Runnable alGuardar; // Registro -> Login tras guardar
-    private Runnable alVolver;  // Registro -> Login sin guardar
+    private Runnable alGuardar; 
+    private Runnable alVolver;  
+    private Runnable alCapturarRostro;
 
     public Registro() {
         setPreferredSize(new Dimension(ANCHO, ALTO));
         setLayout(null);
 
-        // --- Panel de Fondo (reutiliza el de Login) ---
         Login.PanelFondo fondo = new Login.PanelFondo(Login.cargarImagen("fondo6.jpg"));
         fondo.setBounds(0, 0, ANCHO, ALTO);
         fondo.setLayout(null);
         add(fondo);
 
-        // --- Medidas del bloque: todo se alinea a estos bordes ---
-        int anchoBloque = 400;
-        int izq = 59;  // bloque centrado en la zona izquierda libre del fondo
-        int y = 151;   // inicio vertical (el bloque queda centrado en la altura)
+        int anchoBloque = 430;
+        int izq = 55;  
+        int y = 125;   
 
-        int anchoEtiqueta = 150;
-        int anchoCampo = anchoBloque - anchoEtiqueta - 5; // el campo termina en el borde derecho
+        int anchoEtiqueta = 185; // Ampliado para que quepa "Confirmar Contraseña:" sin recortarse
+        int anchoCampoTotal = anchoBloque - anchoEtiqueta - 5;
         int altoFila = 34;
-        int separacionFilas = 12;
+        int separacionFilas = 10;
 
         // Fila Nuevo Usuario
         Login.EtiquetaDragonBall lblUsuario = new Login.EtiquetaDragonBall("Nuevo Usuario:");
@@ -44,29 +41,43 @@ public class Registro extends JPanel {
         fondo.add(lblUsuario);
 
         txtUsuario = new Login.CampoTexto();
-        txtUsuario.setBounds(izq + anchoEtiqueta + 5, y, anchoCampo, altoFila);
+        txtUsuario.setBounds(izq + anchoEtiqueta + 5, y, anchoCampoTotal, altoFila);
         fondo.add(txtUsuario);
 
-        // Fila Contraseña
+        // Fila Contraseña con Ojo
         y += altoFila + separacionFilas;
         Login.EtiquetaDragonBall lblPassword = new Login.EtiquetaDragonBall("Contraseña:");
         lblPassword.setBounds(izq, y, anchoEtiqueta, altoFila);
         fondo.add(lblPassword);
 
         txtPassword = new Login.CampoClave();
-        txtPassword.setBounds(izq + anchoEtiqueta + 5, y, anchoCampo, altoFila);
+        int anchoBotonOjo = 35;
+        int anchoRealCampo = anchoCampoTotal - anchoBotonOjo - 5;
+        txtPassword.setBounds(izq + anchoEtiqueta + 5, y, anchoRealCampo, altoFila);
         fondo.add(txtPassword);
+        fondo.add(crearBotonOjo(txtPassword, izq + anchoEtiqueta + 5 + anchoRealCampo + 5, y, anchoBotonOjo, altoFila));
 
-        // Botones: misma altura y mismos bordes izquierdo/derecho
+        // Fila Confirmar Contraseña con Ojo (En Español completo)
+        y += altoFila + separacionFilas;
+        Login.EtiquetaDragonBall lblConfirm = new Login.EtiquetaDragonBall("Confirmar Contraseña:");
+        lblConfirm.setBounds(izq, y, anchoEtiqueta, altoFila);
+        fondo.add(lblConfirm);
+
+        txtConfirmPassword = new Login.CampoClave();
+        txtConfirmPassword.setBounds(izq + anchoEtiqueta + 5, y, anchoRealCampo, altoFila);
+        fondo.add(txtConfirmPassword);
+        fondo.add(crearBotonOjo(txtConfirmPassword, izq + anchoEtiqueta + 5 + anchoRealCampo + 5, y, anchoBotonOjo, altoFila));
+
+        // Botones
         int altoBoton = 38;
         int separacionBotones = 10;
-        y += altoFila + 24;
+        y += altoFila + 18;
 
         JButton btnCapturarRostro = new BotonDragonBall("Registrar Rostro (Cámara)");
         btnCapturarRostro.setBounds(izq, y, anchoBloque, altoBoton);
         btnCapturarRostro.setFont(new Font("Arial", Font.BOLD, 13));
         btnCapturarRostro.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Aquí se abriría la cámara para tomar la foto de referencia");
+            if (alCapturarRostro != null) alCapturarRostro.run();
         });
         fondo.add(btnCapturarRostro);
 
@@ -75,6 +86,18 @@ public class Registro extends JPanel {
         btnGuardar.setBounds(izq, y, anchoBloque, altoBoton);
         btnGuardar.setFont(new Font("Arial", Font.BOLD, 13));
         btnGuardar.addActionListener(e -> {
+            String pass1 = new String(txtPassword.getPassword());
+            String pass2 = new String(txtConfirmPassword.getPassword());
+
+            if (txtUsuario.getText().trim().isEmpty() || pass1.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Por favor completa todos los campos.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (!pass1.equals(pass2)) {
+                JOptionPane.showMessageDialog(this, "Las contraseñas no coinciden.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
             JOptionPane.showMessageDialog(this, "¡Usuario registrado con éxito!");
             limpiarCampos();
             if (alGuardar != null) alGuardar.run();
@@ -92,12 +115,36 @@ public class Registro extends JPanel {
         fondo.add(btnVolver);
     }
 
+    private JButton crearBotonOjo(JPasswordField campo, int x, int y, int ancho, int alto) {
+        JButton btnOjo = new JButton("👁");
+        btnOjo.setBounds(x, y, ancho, alto);
+        btnOjo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+        btnOjo.setFocusPainted(false);
+        btnOjo.setBackground(new Color(255, 246, 205));
+        btnOjo.setForeground(BotonDragonBall.CAFE_OSCURO);
+        btnOjo.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
+
+        final boolean[] visible = {false};
+        btnOjo.addActionListener(e -> {
+            visible[0] = !visible[0];
+            if (visible[0]) {
+                campo.setEchoChar((char) 0);
+                btnOjo.setText("🙈");
+            } else {
+                campo.setEchoChar('•');
+                btnOjo.setText("👁");
+            }
+        });
+        return btnOjo;
+    }
+
     private void limpiarCampos() {
         txtUsuario.setText("");
         txtPassword.setText("");
+        txtConfirmPassword.setText("");
     }
 
-    // Setters para que Main conecte la navegación
     public void setAlGuardar(Runnable accion) { this.alGuardar = accion; }
     public void setAlVolver(Runnable accion) { this.alVolver = accion; }
+    public void setAlCapturarRostro(Runnable accion) { this.alCapturarRostro = accion; }
 }

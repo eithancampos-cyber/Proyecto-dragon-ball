@@ -6,14 +6,14 @@ import java.net.URL;
 import javax.swing.*;
 
 /**
- * Pantalla de Login con estilo visual Dragon Ball y fondo ajustado.
- * Todos los elementos comparten el mismo bloque centrado (mismo borde izquierdo y derecho).
+ * Pantalla de Login con estilo visual Dragon Ball, botón para ver contraseña y acceso facial.
  */
 public class Login extends JPanel {
 
     private static final int ANCHO = 960, ALTO = 540;
 
-    private Runnable alIniciarSesion, alIrRegistro; // navegación que Main le asigna
+    private Runnable alIniciarSesion, alIrRegistro, alLoginFacial;
+    private CampoClave txtPassword;
 
     public Login() {
         setPreferredSize(new Dimension(ANCHO, ALTO));
@@ -24,29 +24,38 @@ public class Login extends JPanel {
         fondo.setLayout(null);
         add(fondo);
 
-        // Bloque centrado: todo se alinea a los mismos bordes izquierdo y derecho
         int anchoBloque = 360, separacion = 16;
         int izq = (ANCHO - anchoBloque) / 2;
-        int y = 175; // inicio vertical (bloque centrado en la altura)
+        int y = 165; 
         int mitad = (anchoBloque - separacion) / 2;
 
-        agregarFila(fondo, "Usuario:", new CampoTexto(), izq, y, anchoBloque);
-        agregarFila(fondo, "Contraseña:", new CampoClave(), izq, y + 46, anchoBloque);
+        // Fila Usuario
+        agregarFilaUsuario(fondo, "Usuario:", new CampoTexto(), izq, y, anchoBloque);
+        
+        // Fila Contraseña con botón del ojo
+        y += 46;
+        txtPassword = new CampoClave();
+        agregarFilaPasswordConOjo(fondo, "Contraseña:", txtPassword, izq, y, anchoBloque);
 
-        y += 104; // debajo de las dos filas (46 + 34 de alto + 24 de aire)
+        y += 60; 
         fondo.add(crearBoton("Iniciar Sesión", izq, y, mitad, () -> {
-            JOptionPane.showMessageDialog(this, "Aquí validaría las credenciales");
+            if (txtPassword.getPassword().length == 0) {
+                JOptionPane.showMessageDialog(this, "Por favor, ingresa tu contraseña.", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             if (alIniciarSesion != null) alIniciarSesion.run();
         }));
-        fondo.add(crearBoton("Login Facial", izq + mitad + separacion, y, mitad, () ->
-            JOptionPane.showMessageDialog(this, "Aquí abriría la cámara para el reconocimiento facial")));
+
+        fondo.add(crearBoton("Login Facial", izq + mitad + separacion, y, mitad, () -> {
+            if (alLoginFacial != null) alLoginFacial.run();
+        }));
+
         fondo.add(crearBoton("¿No tienes cuenta? Regístrate", izq, y + 48, anchoBloque, () -> {
             if (alIrRegistro != null) alIrRegistro.run();
         }));
     }
 
-    /** Agrega una fila "etiqueta + campo"; el campo termina justo en el borde derecho del bloque. */
-    private static void agregarFila(JPanel destino, String texto, JTextField campo, int izq, int y, int anchoBloque) {
+    private static void agregarFilaUsuario(JPanel destino, String texto, JTextField campo, int izq, int y, int anchoBloque) {
         int anchoEtiqueta = 115;
         EtiquetaDragonBall etiqueta = new EtiquetaDragonBall(texto);
         etiqueta.setBounds(izq, y, anchoEtiqueta, 34);
@@ -55,7 +64,42 @@ public class Login extends JPanel {
         destino.add(campo);
     }
 
-    /** Crea un botón Dragon Ball de 38 px de alto con su acción. */
+    private static void agregarFilaPasswordConOjo(JPanel destino, String texto, CampoClave campo, int izq, int y, int anchoBloque) {
+        int anchoEtiqueta = 115;
+        EtiquetaDragonBall etiqueta = new EtiquetaDragonBall(texto);
+        etiqueta.setBounds(izq, y, anchoEtiqueta, 34);
+        
+        int anchoCampoTotal = anchoBloque - anchoEtiqueta - 5;
+        int anchoBotonOjo = 35;
+        int anchoRealCampo = anchoCampoTotal - anchoBotonOjo - 5;
+
+        campo.setBounds(izq + anchoEtiqueta + 5, y, anchoRealCampo, 34);
+
+        JButton btnOjo = new JButton("👁");
+        btnOjo.setBounds(izq + anchoEtiqueta + 5 + anchoRealCampo + 5, y, anchoBotonOjo, 34);
+        btnOjo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+        btnOjo.setFocusPainted(false);
+        btnOjo.setBackground(new Color(255, 246, 205));
+        btnOjo.setForeground(BotonDragonBall.CAFE_OSCURO);
+        btnOjo.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
+        
+        final boolean[] visible = {false};
+        btnOjo.addActionListener(e -> {
+            visible[0] = !visible[0];
+            if (visible[0]) {
+                campo.setEchoChar((char) 0);
+                btnOjo.setText("🙈");
+            } else {
+                campo.setEchoChar('•');
+                btnOjo.setText("👁");
+            }
+        });
+
+        destino.add(etiqueta);
+        destino.add(campo);
+        destino.add(btnOjo);
+    }
+
     private static JButton crearBoton(String texto, int x, int y, int ancho, Runnable accion) {
         JButton boton = new BotonDragonBall(texto);
         boton.setBounds(x, y, ancho, 38);
@@ -64,24 +108,17 @@ public class Login extends JPanel {
         return boton;
     }
 
-    /** Carga una imagen del classpath o de la carpeta del proyecto (también la usan Registro y MatrizPatrones). */
     static Image cargarImagen(String nombre) {
         URL url = Login.class.getResource("/" + nombre);
         if (url != null) return new ImageIcon(url).getImage();
         for (String ruta : new String[]{nombre, "Proyecto-dragon-ball/" + nombre, "src/" + nombre}) {
             if (new File(ruta).exists()) return new ImageIcon(ruta).getImage();
         }
-        System.err.println("No se encontró la imagen de fondo: " + nombre);
         return null;
     }
 
-    // ------------------------------------------------------------------
-    // Componentes con el estilo Dragon Ball (los colores vienen de BotonDragonBall)
-    // ------------------------------------------------------------------
-
     private static final Color CREMA = new Color(255, 246, 205);
 
-    /** Dibuja el fondo redondeado con borde negro grueso (naranja si tiene el foco). */
     private static void pintarCampo(Graphics g, JComponent c) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -93,9 +130,8 @@ public class Login extends JPanel {
         g2.dispose();
     }
 
-    /** Aplica fuente, colores y margen internos comunes a los campos. */
     private static void estilizarCampo(JTextField campo) {
-        campo.setOpaque(false); // el fondo lo pinta pintarCampo
+        campo.setOpaque(false);
         campo.setFont(new Font("Arial", Font.BOLD, 14));
         campo.setForeground(BotonDragonBall.CAFE_OSCURO);
         campo.setCaretColor(BotonDragonBall.CAFE_OSCURO);
@@ -108,19 +144,16 @@ public class Login extends JPanel {
         });
     }
 
-    /** Campo de usuario con estilo Dragon Ball. */
     static class CampoTexto extends JTextField {
         CampoTexto() { estilizarCampo(this); }
         @Override protected void paintComponent(Graphics g) { pintarCampo(g, this); super.paintComponent(g); }
     }
 
-    /** Campo de contraseña con estilo Dragon Ball. */
     static class CampoClave extends JPasswordField {
         CampoClave() { estilizarCampo(this); }
         @Override protected void paintComponent(Graphics g) { pintarCampo(g, this); super.paintComponent(g); }
     }
 
-    /** Etiqueta amarilla con contorno negro grueso, como las letras del anime. */
     static class EtiquetaDragonBall extends JLabel {
         EtiquetaDragonBall(String texto) {
             super(texto);
@@ -134,24 +167,22 @@ public class Login extends JPanel {
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g2.setFont(getFont());
             FontMetrics fm = g2.getFontMetrics();
-            int x = 3; // deja espacio para el contorno
+            int x = 3;
             int y = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
 
-            g2.setColor(Color.BLACK); // contorno: el texto desplazado en todas las direcciones
+            g2.setColor(Color.BLACK);
             for (int dx = -2; dx <= 2; dx++)
                 for (int dy = -2; dy <= 2; dy++)
                     if (dx != 0 || dy != 0) g2.drawString(getText(), x + dx, y + dy);
 
-            g2.setColor(BotonDragonBall.AMARILLO); // relleno encima
+            g2.setColor(BotonDragonBall.AMARILLO);
             g2.drawString(getText(), x, y);
             g2.dispose();
         }
     }
 
-    /** Panel que estira la imagen a todo su tamaño (o pinta un color liso si no hay imagen). */
     static class PanelFondo extends JPanel {
         private final Image imagen;
-
         PanelFondo(Image imagen) { this.imagen = imagen; }
 
         @Override
@@ -168,4 +199,5 @@ public class Login extends JPanel {
 
     public void setAlIniciarSesion(Runnable accion) { this.alIniciarSesion = accion; }
     public void setAlIrRegistro(Runnable accion) { this.alIrRegistro = accion; }
+    public void setAlLoginFacial(Runnable accion) { this.alLoginFacial = accion; }
 }
