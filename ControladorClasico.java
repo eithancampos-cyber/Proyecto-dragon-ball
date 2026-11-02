@@ -2,39 +2,65 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 /**
- * CONTROLADOR del Modo Clásico.
+ * Controlador del modo clásico.
  * Recibe los clics de la vista, se los pasa al modelo y actualiza la vista
- * según el resultado. Ni el modelo ni la vista se conocen entre sí.
+ * con lo que responde el modelo. Las reglas están todas en ModeloClasico.
  */
 public class ControladorClasico {
 
-    private static final int RETARDO_MS = 900; // tiempo que se ven dos cartas distintas antes de ocultarse
+    private static final int PERIODO_RELOJ_MS = 100; // cada cuánto se le avisa al modelo que pasó el tiempo
 
     private final ModeloClasico modelo;
     private final InterfazMatrices vista;
-    private Timer temporizador;
+    private Timer temporizadorFallo;
+    private long ultimoTick;
 
     public ControladorClasico(ModeloClasico modelo, InterfazMatrices vista) {
         this.modelo = modelo;
         this.vista = vista;
 
         vista.setOyenteCelda(this::alTocarCelda);
-        // Al salir al menú se descarta la partida, así cada entrada al modo empieza de cero
+        // al volver al menú se descarta la partida
         vista.getBtnVolver().addActionListener(e -> reiniciar());
+        // cada vez que se abre esta pantalla se muestra de quién es el turno
+        vista.setAlMostrarse(this::anunciarTurnoActual);
+
+        ultimoTick = System.currentTimeMillis();
+        new Timer(PERIODO_RELOJ_MS, e -> latidoReloj()).start();
 
         reiniciar();
     }
 
-    /** Nueva partida: baraja, oculta todo y refresca los marcadores. */
+    /** Empieza una partida nueva. */
     private void reiniciar() {
-        if (temporizador != null) temporizador.stop();
+        if (temporizadorFallo != null) temporizadorFallo.stop();
         modelo.reiniciar();
         vista.reiniciarTablero();
         actualizarMarcadores();
+        refrescarTurno();
+    }
+
+    /** Le dice al modelo cuánto tiempo pasó (solo si el modo clásico se está viendo). */
+    private void latidoReloj() {
+        long ahora = System.currentTimeMillis();
+        long dt = Math.min(ahora - ultimoTick, 250);
+        ultimoTick = ahora;
+        if (!vista.isShowing() || modelo.isTerminado()) return;
+
+        // se guarda la carta volteada antes, por si se acaba el tiempo y hay que taparla
+        int fila = modelo.getFilaSeleccionada();
+        int col = modelo.getColSeleccionada();
+        int jugador = modelo.getTurno();
+
+        if (modelo.descontar(dt) && fila != -1) {
+            vista.ocultarCarta(jugador, fila, col);
+        }
+        actualizarMarcadores();
+        refrescarTurno();
     }
 
     private void alTocarCelda(int jugador, int fila, int col) {
-        // La primera carta (si existe) se lee ANTES de voltear, porque el modelo la limpia al acertar
+        // se guarda la primera carta antes de voltear porque el modelo la borra si es pareja
         final int fila1 = modelo.getFilaSeleccionada();
         final int col1 = modelo.getColSeleccionada();
 
@@ -47,43 +73,47 @@ public class ControladorClasico {
             vista.marcarEncontrada(jugador, fila1, col1);
             vista.marcarEncontrada(jugador, fila, col);
         } else if (resultado == ModeloClasico.Resultado.NO_PAREJA) {
-            // Se dejan ver un momento y luego se ocultan; mientras tanto el modelo bloquea más clics
-            temporizador = new Timer(RETARDO_MS, e -> {
+            // las cartas se ven un momento y luego se tapan
+            temporizadorFallo = new Timer((int) ModeloClasico.MS_OCULTAR_FALLO, e -> {
                 vista.ocultarCarta(jugador, fila1, col1);
                 vista.ocultarCarta(jugador, fila, col);
                 modelo.resolverFallo();
                 actualizarMarcadores();
+                refrescarTurno();
             });
-            temporizador.setRepeats(false);
-            temporizador.start();
+            temporizadorFallo.setRepeats(false);
+            temporizadorFallo.start();
         }
 
         actualizarMarcadores();
+        refrescarTurno();
         if (modelo.isTerminado()) {
-            SwingUtilities.invokeLater(this::terminarPartida); // deja que se pinte la última pareja primero
+            SwingUtilities.invokeLater(this::terminarPartida);
         }
     }
 
     private void actualizarMarcadores() {
         boolean fin = modelo.isTerminado();
         for (int j = 0; j < 2; j++) {
-            vista.actualizarMarcador(j, modelo.getPares(j), modelo.getIntentos(j), !fin && modelo.getTurno() == j);
+            boolean suTurno = !fin && modelo.getTurno() == j;
+            vista.actualizarMarcador(j, modelo.getPares(j), modelo.getIntentos(j), suTurno,
+                    suTurno ? modelo.getSegundosRestantes() : -1);
         }
     }
 
-    private void terminarPartida() {
-        int ganador = modelo.getGanador();
-        String detalle = "Jugador 1: " + modelo.getIntentos(0) + " intentos\n"
-                       + "Jugador 2: " + modelo.getIntentos(1) + " intentos";
-        String mensaje = (ganador == -1)
-                ? "¡Empate!\n" + detalle
-                : "¡Gana el Jugador " + (ganador + 1) + "!\n" + detalle;
+    /** Si cambió el turno, se muestra el aviso. */
+    private void refrescarTurno() {
+        if (modelo.consumirCambioTurno() && !modelo.isTerminado()) anunciarTurnoActual();
+    }
 
-        if (vista.preguntarOtraPartida(mensaje)) {
-            reiniciar();
-        } else {
-            reiniciar();
-            vista.volverAlMenu();
-        }
+    private void anunciarTurnoActual() {
+        if (!modelo.isTerminado()) vista.mostrarTurno(modelo.getTurno(), (int) ModeloClasico.MS_BANNER_TURNO);
+    }
+
+    private void terminarPartida() {
+        // aquí se puede poner la animación de gane (modelo.getGanador() dice quién ganó)
+        boolean otraPartida = vista.preguntarOtraPartida(modelo.getMensajeFinal());
+        reiniciar();
+        if (!otraPartida) vista.volverAlMenu();
     }
 }

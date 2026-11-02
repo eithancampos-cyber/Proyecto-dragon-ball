@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.awt.event.HierarchyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -38,7 +39,7 @@ public class InterfazMatrices extends JPanel {
     private static final Color TEXTO_ENCONTRADA = new Color(255, 215, 0);
     private static final Color DORADO = new Color(255, 215, 0);
 
-    /** Aviso de que el usuario tocó una celda (lo implementa el controlador). */
+    /** Avisa cuando se toca una celda (lo usa el controlador). */
     public interface OyenteCelda {
         void alTocar(int jugador, int fila, int col);
     }
@@ -54,6 +55,15 @@ public class InterfazMatrices extends JPanel {
     private BotonDragonBall btnVolver;
     private Runnable alVolver;
     private OyenteCelda oyenteCelda;
+    private Runnable alMostrarse; // se ejecuta cuando esta pantalla se muestra
+
+    // Aviso de turno: azul para el jugador 1 y rojo para el 2
+    private static final Color AZUL_TURNO = new Color(30, 110, 255);
+    private static final Color ROJO_TURNO = new Color(235, 45, 45);
+    private Timer timerAviso;
+    private long inicioAviso;
+    private int duracionAviso;
+    private int jugadorAviso = -1; // -1 = no hay aviso
 
     public InterfazMatrices() {
         Dimension tam = new Dimension(ANCHO, ALTO);
@@ -92,12 +102,19 @@ public class InterfazMatrices extends JPanel {
         btnVolver.addActionListener(e -> volverAlMenu());
         add(btnVolver);
 
-        // Conecta modelo y controlador a esta vista (Main sigue haciendo solo "new InterfazMatrices()")
+        // detecta cuando la pantalla se muestra
+        addHierarchyListener(e -> {
+            if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing() && alMostrarse != null) {
+                alMostrarse.run();
+            }
+        });
+
+        // crea el modelo y el controlador de este modo
         new ControladorClasico(new ModeloClasico(), this);
     }
 
     // ------------------------------------------------------------------
-    // Carga de recursos (sin cambios)
+    // Carga de recursos
     // ------------------------------------------------------------------
 
     private void cargarFondo() {
@@ -149,10 +166,81 @@ public class InterfazMatrices extends JPanel {
     }
 
     // ------------------------------------------------------------------
+    // Aviso de turno (se dibuja encima, sin quitar nada)
+    // ------------------------------------------------------------------
+
+    /** Muestra "Turno de jugador X" durante 'ms' milisegundos. */
+    public void mostrarTurno(int jugador, int ms) {
+        jugadorAviso = jugador;
+        duracionAviso = ms;
+        inicioAviso = System.currentTimeMillis();
+        if (timerAviso != null) timerAviso.stop();
+        timerAviso = new Timer(30, e -> {
+            if (System.currentTimeMillis() - inicioAviso >= duracionAviso) {
+                jugadorAviso = -1;
+                timerAviso.stop();
+            }
+            repaint();
+        });
+        timerAviso.start();
+        repaint();
+    }
+
+    @Override
+    protected void paintChildren(Graphics g) {
+        super.paintChildren(g);
+        if (jugadorAviso >= 0) pintarAviso((Graphics2D) g.create());
+    }
+
+    private void pintarAviso(Graphics2D g2) {
+        double f = (System.currentTimeMillis() - inicioAviso) / (double) duracionAviso;
+        // aparece rápido y se va desvaneciendo al final
+        float a = (float) (f < 0.15 ? f / 0.15 : f > 0.6 ? (1 - f) / 0.4 : 1);
+        a = Math.max(0f, Math.min(1f, a));
+
+        Color base = (jugadorAviso == 0) ? AZUL_TURNO : ROJO_TURNO;
+        int w = getWidth(), h = getHeight();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        // color de fondo, más fuerte arriba y se pierde hacia abajo
+        g2.setPaint(new GradientPaint(0, 0, conAlpha(base, (int) (60 * a)), 0, h * 0.6f, conAlpha(base, 0)));
+        g2.fillRect(0, 0, w, h);
+
+        // franja del mensaje
+        // se dibuja fila por fila para que los bordes queden suaves
+        int yBanda = 66, altoBanda = 48;
+        for (int i = 0; i < altoBanda; i++) {
+            double vertical = Math.sin(Math.PI * (i + 0.5) / altoBanda); // 0 en los bordes, 1 al centro
+            int alfa = (int) (105 * a * vertical);
+            g2.setPaint(new LinearGradientPaint(0, 0, w, 0, new float[]{0f, 0.2f, 0.8f, 1f},
+                    new Color[]{conAlpha(base, 0), conAlpha(base, alfa), conAlpha(base, alfa), conAlpha(base, 0)}));
+            g2.fillRect(0, yBanda + i, w, 1);
+        }
+
+        String texto = "Turno de jugador " + (jugadorAviso + 1);
+        g2.setFont(new Font("Arial", Font.BOLD, 28));
+        FontMetrics fm = g2.getFontMetrics();
+        int x = (w - fm.stringWidth(texto)) / 2;
+        int y = yBanda + (altoBanda - fm.getHeight()) / 2 + fm.getAscent();
+        g2.setColor(conAlpha(Color.BLACK, (int) (255 * a)));
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dy = -2; dy <= 2; dy++)
+                if (dx != 0 || dy != 0) g2.drawString(texto, x + dx, y + dy);
+        g2.setColor(conAlpha(Color.WHITE, (int) (255 * a)));
+        g2.drawString(texto, x, y);
+        g2.dispose();
+    }
+
+    private static Color conAlpha(Color c, int alpha) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(0, Math.min(255, alpha)));
+    }
+
+    // ------------------------------------------------------------------
     // Construcción de las matrices
     // ------------------------------------------------------------------
 
-    /** Celda con fondo semitransparente cuyo color cambia según su estado. */
+    /** Celda que cambia de color según su estado. */
     private static class Celda extends JLabel {
         private Color colorFondo = FONDO_OCULTA;
 
@@ -186,7 +274,7 @@ public class InterfazMatrices extends JPanel {
         }
     }
 
-    /** Crea el panel de un jugador con su cuadrícula de n x n celdas. */
+    /** Crea el panel de un jugador con sus celdas. */
     private JPanel crearPanelMatriz(Celda[][] celdas, int jugador) {
         int n = celdas.length;
 
@@ -223,14 +311,14 @@ public class InterfazMatrices extends JPanel {
     }
 
     // ------------------------------------------------------------------
-    // Métodos que usa el controlador para actualizar la pantalla
+    // Métodos que usa el controlador
     // ------------------------------------------------------------------
 
     public void mostrarCarta(int jugador, int fila, int col, String texto) { celda(jugador, fila, col).mostrar(texto); }
     public void ocultarCarta(int jugador, int fila, int col) { celda(jugador, fila, col).ocultar(); }
     public void marcarEncontrada(int jugador, int fila, int col) { celda(jugador, fila, col).encontrada(); }
 
-    /** Vuelve a dejar todas las celdas boca abajo. */
+    /** Tapa todas las celdas. */
     public void reiniciarTablero() {
         for (int i = 0; i < ModeloClasico.N; i++) {
             for (int j = 0; j < ModeloClasico.N; j++) {
@@ -240,17 +328,18 @@ public class InterfazMatrices extends JPanel {
         }
     }
 
-    /** Muestra pares, intentos y de quién es el turno en el título de cada matriz. */
-    public void actualizarMarcador(int jugador, int pares, int intentos, boolean esSuTurno) {
+    /** Pone pares, intentos y tiempo en el título de cada matriz (segundos < 0 = no muestra tiempo). */
+    public void actualizarMarcador(int jugador, int pares, int intentos, boolean esSuTurno, int segundos) {
         TitledBorder borde = bordes[jugador];
         borde.setTitle((esSuTurno ? "► " : "") + "Jugador " + (jugador + 1)
                 + "  |  Pares: " + pares + "/" + ModeloClasico.PARES
-                + "  |  Intentos: " + intentos);
+                + "  |  Intentos: " + intentos
+                + (segundos >= 0 ? "  |  Tiempo: " + segundos + "s" : ""));
         borde.setTitleColor(esSuTurno ? DORADO : Color.WHITE);
         paneles[jugador].repaint();
     }
 
-    /** Muestra el resultado; devuelve true si el usuario quiere jugar otra partida. */
+    /** Muestra el resultado. Devuelve true si quieren jugar otra vez. */
     public boolean preguntarOtraPartida(String mensaje) {
         Object[] opciones = {"Jugar de nuevo", "Volver al menú"};
         int eleccion = JOptionPane.showOptionDialog(this, mensaje, "Fin de la partida",
@@ -262,8 +351,9 @@ public class InterfazMatrices extends JPanel {
         if (alVolver != null) alVolver.run();
     }
 
-    // Setters / getters para conectar controlador y Main
+    // Setters y getters
     public void setOyenteCelda(OyenteCelda oyente) { this.oyenteCelda = oyente; }
+    public void setAlMostrarse(Runnable accion) { this.alMostrarse = accion; }
     public JButton getBtnVolver() { return btnVolver; }
     public void setAlVolver(Runnable accion) { this.alVolver = accion; }
 }
