@@ -4,6 +4,11 @@ import javax.swing.*;
 // Botón con el estilo de la imagen: amarillo/naranja, borde negro, rojo al pasar el mouse
 public class BotonDragonBall extends JButton {
 
+    // Paleta del estilo Dragon Ball: la reutilizan los demás componentes (Login, etc.)
+    public static final Color AMARILLO = new Color(255, 228, 50);
+    public static final Color NARANJA = new Color(255, 150, 0);
+    public static final Color CAFE_OSCURO = new Color(60, 10, 0);
+
     private boolean apagado = false;
 
     public BotonDragonBall(String texto) {
@@ -50,9 +55,9 @@ public class BotonDragonBall extends JButton {
             abajo = new Color(90, 90, 90);
             colorTexto = new Color(235, 235, 235);
         } else {
-            arriba = new Color(255, 228, 50);
-            abajo = new Color(255, 150, 0);
-            colorTexto = new Color(60, 10, 0);
+            arriba = AMARILLO;
+            abajo = NARANJA;
+            colorTexto = CAFE_OSCURO;
         }
 
         // Relleno con degradado
