@@ -1,5 +1,5 @@
 {
-    "java.debug.settings.onBuildFailureProceed": true,
+    "java.debug.settings.onBuildFailureProceed": false,
     "java.project.referencedLibraries": [
         "lib/**/*.jar",
         "c:\\Users\\alvar\\Downloads\\bridj-0.7.0.jar",

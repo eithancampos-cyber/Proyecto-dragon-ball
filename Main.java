@@ -51,6 +51,10 @@ public class Main {
             contenedor.add(centrar(patrones), PATRONES);
             contenedor.add(centrar(reconocimientoFacial), FACIAL);
 
+            // --- Registro y login con sus validaciones (modelo + controlador) ---
+            ModeloUsuarios usuarios = new ModeloUsuarios();
+            new ControladorAcceso(usuarios, login, registro);
+
             // --- Navegación entre pantallas ---
             login.setAlIrRegistro(() -> cartas.show(contenedor, REGISTRO));          // Login -> Registro
             registro.setAlGuardar(() -> cartas.show(contenedor, LOGIN));             // Registro -> Login (tras guardar)
@@ -80,7 +84,10 @@ public class Main {
             patrones.setAlVolver(() -> cartas.show(contenedor, MENU));               // Matriz 5x5 -> Menú
 
             // Conexión para que el botón de Cerrar Sesión en Ajustes devuelva al Login
-            menu.setAlCerrarSesion(() -> cartas.show(contenedor, LOGIN));
+            menu.setAlCerrarSesion(() -> {
+                usuarios.cerrarSesion();
+                cartas.show(contenedor, LOGIN);
+            });
 
             // --- Mostrar ---
             ventana.add(contenedor);

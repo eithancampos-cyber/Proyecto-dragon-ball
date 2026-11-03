@@ -13,7 +13,9 @@ public class Login extends JPanel {
     private static final int ANCHO = 960, ALTO = 540;
 
     private Runnable alIniciarSesion, alIrRegistro, alLoginFacial;
+    private CampoTexto txtUsuario;
     private CampoClave txtPassword;
+    private JButton btnIniciar;
 
     public Login() {
         setPreferredSize(new Dimension(ANCHO, ALTO));
@@ -30,7 +32,8 @@ public class Login extends JPanel {
         int mitad = (anchoBloque - separacion) / 2;
 
         // Fila Usuario
-        agregarFilaUsuario(fondo, "Usuario:", new CampoTexto(), izq, y, anchoBloque);
+        txtUsuario = new CampoTexto();
+        agregarFilaUsuario(fondo, "Usuario:", txtUsuario, izq, y, anchoBloque);
         
         // Fila Contraseña con botón del ojo
         y += 46;
@@ -38,21 +41,22 @@ public class Login extends JPanel {
         agregarFilaPasswordConOjo(fondo, "Contraseña:", txtPassword, izq, y, anchoBloque);
 
         y += 60; 
-        fondo.add(crearBoton("Iniciar Sesión", izq, y, mitad, () -> {
-            if (txtPassword.getPassword().length == 0) {
-                JOptionPane.showMessageDialog(this, "Por favor, ingresa tu contraseña.", "Aviso", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            if (alIniciarSesion != null) alIniciarSesion.run();
-        }));
+        // Iniciar Sesión lo maneja ControladorAcceso (valida con ModeloUsuarios)
+        btnIniciar = crearBoton("Iniciar Sesión", izq, y, mitad, () -> { });
+        fondo.add(btnIniciar);
 
         fondo.add(crearBoton("Login Facial", izq + mitad + separacion, y, mitad, () -> {
             if (alLoginFacial != null) alLoginFacial.run();
         }));
 
         fondo.add(crearBoton("¿No tienes cuenta? Regístrate", izq, y + 48, anchoBloque, () -> {
+            limpiar();
             if (alIrRegistro != null) alIrRegistro.run();
         }));
+
+        // Enter en el usuario pasa a la contraseña; Enter en la contraseña inicia sesión
+        txtUsuario.addActionListener(e -> txtPassword.requestFocusInWindow());
+        txtPassword.addActionListener(e -> btnIniciar.doClick());
     }
 
     private static void agregarFilaUsuario(JPanel destino, String texto, JTextField campo, int izq, int y, int anchoBloque) {
@@ -195,6 +199,31 @@ public class Login extends JPanel {
                 g.fillRect(0, 0, getWidth(), getHeight());
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // API para el controlador (ControladorAcceso)
+    // ------------------------------------------------------------------
+
+    public String getUsuario() { return txtUsuario.getText().trim(); }
+    public String getClave() { return new String(txtPassword.getPassword()); }
+    public JButton getBtnIniciar() { return btnIniciar; }
+
+    public void setUsuario(String usuario) { txtUsuario.setText(usuario); }
+    public void limpiarClave() { txtPassword.setText(""); txtPassword.requestFocusInWindow(); }
+
+    public void limpiar() {
+        txtUsuario.setText("");
+        txtPassword.setText("");
+    }
+
+    public void mostrarError(String mensaje) {
+        JOptionPane.showMessageDialog(this, mensaje, "No se pudo iniciar sesión", JOptionPane.WARNING_MESSAGE);
+    }
+
+    /** Login correcto: Main decide a qué pantalla se va. */
+    public void entrar() {
+        if (alIniciarSesion != null) alIniciarSesion.run();
     }
 
     public void setAlIniciarSesion(Runnable accion) { this.alIniciarSesion = accion; }

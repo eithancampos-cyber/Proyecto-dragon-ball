@@ -12,6 +12,7 @@ public class Registro extends JPanel {
     private Login.CampoTexto txtUsuario;
     private Login.CampoClave txtPassword;
     private Login.CampoClave txtConfirmPassword;
+    private JButton btnGuardar;
 
     private Runnable alGuardar; 
     private Runnable alVolver;  
@@ -82,26 +83,10 @@ public class Registro extends JPanel {
         fondo.add(btnCapturarRostro);
 
         y += altoBoton + separacionBotones;
-        JButton btnGuardar = new BotonDragonBall("Guardar Registro");
+        btnGuardar = new BotonDragonBall("Guardar Registro");
         btnGuardar.setBounds(izq, y, anchoBloque, altoBoton);
         btnGuardar.setFont(new Font("Arial", Font.BOLD, 13));
-        btnGuardar.addActionListener(e -> {
-            String pass1 = new String(txtPassword.getPassword());
-            String pass2 = new String(txtConfirmPassword.getPassword());
-
-            if (txtUsuario.getText().trim().isEmpty() || pass1.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Por favor completa todos los campos.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            if (!pass1.equals(pass2)) {
-                JOptionPane.showMessageDialog(this, "Las contraseñas no coinciden.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            JOptionPane.showMessageDialog(this, "¡Usuario registrado con éxito!");
-            limpiarCampos();
-            if (alGuardar != null) alGuardar.run();
-        });
+        // Su acción la maneja ControladorAcceso (valida con ModeloUsuarios)
         fondo.add(btnGuardar);
 
         y += altoBoton + separacionBotones;
@@ -113,6 +98,11 @@ public class Registro extends JPanel {
             if (alVolver != null) alVolver.run();
         });
         fondo.add(btnVolver);
+
+        // Enter pasa al siguiente campo; Enter en el último guarda
+        txtUsuario.addActionListener(e -> txtPassword.requestFocusInWindow());
+        txtPassword.addActionListener(e -> txtConfirmPassword.requestFocusInWindow());
+        txtConfirmPassword.addActionListener(e -> btnGuardar.doClick());
     }
 
     private JButton crearBotonOjo(JPasswordField campo, int x, int y, int ancho, int alto) {
@@ -142,6 +132,30 @@ public class Registro extends JPanel {
         txtUsuario.setText("");
         txtPassword.setText("");
         txtConfirmPassword.setText("");
+    }
+
+    // ------------------------------------------------------------------
+    // API para el controlador (ControladorAcceso)
+    // ------------------------------------------------------------------
+
+    public String getUsuario() { return txtUsuario.getText().trim(); }
+    public String getClave() { return new String(txtPassword.getPassword()); }
+    public String getConfirmacion() { return new String(txtConfirmPassword.getPassword()); }
+    public JButton getBtnGuardar() { return btnGuardar; }
+
+    public void limpiar() { limpiarCampos(); }
+
+    public void mostrarError(String mensaje) {
+        JOptionPane.showMessageDialog(this, mensaje, "Revisa tus datos", JOptionPane.WARNING_MESSAGE);
+    }
+
+    public void mostrarInfo(String mensaje) {
+        JOptionPane.showMessageDialog(this, mensaje, "Registro", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /** Registro correcto: Main decide a qué pantalla se va (el Login). */
+    public void registroExitoso() {
+        if (alGuardar != null) alGuardar.run();
     }
 
     public void setAlGuardar(Runnable accion) { this.alGuardar = accion; }
