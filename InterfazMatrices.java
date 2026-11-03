@@ -132,15 +132,15 @@ public class InterfazMatrices extends JPanel {
 
     private void cargarSonido() {
         try {
-            URL recurso = getClass().getResource("/clic.wav");
+            URL recurso = getClass().getResource("/carta_volteo.wav");
             AudioInputStream audio = (recurso != null)
                     ? AudioSystem.getAudioInputStream(recurso)
-                    : AudioSystem.getAudioInputStream(new File("clic.wav"));
+                    : AudioSystem.getAudioInputStream(new File("carta_volteo.wav"));
             sonidoClic = AudioSystem.getClip();
             sonidoClic.open(audio);
             audio.close();
         } catch (Exception e) {
-            System.err.println("No se pudo cargar clic.wav: " + e.getMessage());
+            System.err.println("No se pudo cargar carta_volteo.wav: " + e.getMessage());
         }
     }
 
