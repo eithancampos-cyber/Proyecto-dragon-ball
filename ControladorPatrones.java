@@ -133,7 +133,7 @@ public class ControladorPatrones {
                 reloj.stop();
                 vista.pintarTablero(modelo.getTablero());
                 vista.actualizarMarcador(modelo.getLongitud(), modelo.getRondasCompletadas(), modelo.getLongitud());
-                vista.setMensaje("¡Correcto!\nSiguiente: " + (modelo.getLongitud() + 1) + " casillas");
+                vista.setMensaje("¡Correcto!\nSiguiente: " + (modelo.getLongitud() + 1) + " casillas\n(el mismo patrón + 1)");
                 pausaRonda.start();
                 break;
             case FALLO:
