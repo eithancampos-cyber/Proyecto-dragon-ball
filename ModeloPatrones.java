@@ -8,9 +8,11 @@ import java.util.Random;
  * No sabe nada de Swing: guarda el estado del juego y aplica las reglas.
  *
  * Reglas:
- *  - Cada ronda tiene un patrón aleatorio de casillas. El primero tiene 3.
+ *  - La partida empieza con un patrón aleatorio de 3 casillas.
  *  - Se muestra el patrón y el jugador debe tocar las mismas casillas en el mismo orden.
- *  - Si lo logra, el siguiente patrón tiene 1 casilla más (otro patrón nuevo).
+ *  - Si lo logra, el siguiente patrón es EL MISMO patrón anterior más 1 casilla nueva al final
+ *    (3 casillas, luego esas mismas 3 + 1, luego esas 4 + 1, y así sucesivamente).
+ *  - Cada partida nueva empieza con un patrón nuevo.
  *  - El jugador tiene 12 segundos EN TOTAL para repetir el patrón, y menos de 2 segundos
  *    entre una casilla y la siguiente (el límite de 2 s corre desde la primera casilla tocada).
  *  - El juego termina al tocar una casilla incorrecta o al agotarse alguno de los tiempos.
@@ -64,24 +66,42 @@ public class ModeloPatrones {
         generarPatron();
     }
 
-    /** Pasa a la siguiente ronda: un patrón nuevo con 1 casilla más. */
+    /**
+     * Pasa a la siguiente ronda: el MISMO patrón de la ronda anterior más 1 casilla nueva al final.
+     * Las casillas que ya estaban no cambian, solo se agrega una al final.
+     */
     public void siguienteRonda() {
         longitud++;
-        generarPatron();
+        if (patron.isEmpty()) {
+            generarPatron(); // por seguridad: si no había patrón, se crea uno de la longitud actual
+            return;
+        }
+        patron.add(casillaAlAzar(patron.get(patron.size() - 1)));
+        prepararMuestra();
     }
 
-    /** Elige al azar las casillas del patrón (nunca repite la misma casilla dos veces seguidas). */
+    /** Crea un patrón nuevo desde cero con las casillas de la longitud actual. */
     private void generarPatron() {
         patron.clear();
         int[] anterior = null;
         for (int k = 0; k < longitud; k++) {
-            int[] casilla;
-            do {
-                casilla = new int[]{azar.nextInt(N), azar.nextInt(N)};
-            } while (anterior != null && anterior[0] == casilla[0] && anterior[1] == casilla[1]);
-            patron.add(casilla);
-            anterior = casilla;
+            anterior = casillaAlAzar(anterior);
+            patron.add(anterior);
         }
+        prepararMuestra();
+    }
+
+    /** Elige una casilla al azar distinta de la anterior (así nunca se repite la misma dos veces seguidas). */
+    private int[] casillaAlAzar(int[] anterior) {
+        int[] casilla;
+        do {
+            casilla = new int[]{azar.nextInt(N), azar.nextInt(N)};
+        } while (anterior != null && anterior[0] == casilla[0] && anterior[1] == casilla[1]);
+        return casilla;
+    }
+
+    /** Deja el modelo listo para mostrarle el patrón al jugador. */
+    private void prepararMuestra() {
         indice = 0;
         ultimaCasilla = -1;
         fase = Fase.MOSTRANDO;
