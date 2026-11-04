@@ -36,6 +36,7 @@ public class ModeloClasico {
     private long tiempoRestanteMs;
     private long graciaMs;      // el reloj espera mientras sale el aviso de turno
     private boolean turnoCambio; // para que la vista muestre el aviso
+    private boolean bloqueado;   // true mientras suena una animación (intro): no se juega ni corre el reloj
 
     public ModeloClasico() {
         reiniciar();
@@ -68,13 +69,14 @@ public class ModeloClasico {
         tiempoRestanteMs = MS_TURNO;
         graciaMs = MS_BANNER_TURNO;
         turnoCambio = true;
+        bloqueado = false;
     }
 
     // ---------- Jugadas ----------
 
     /** Voltea una carta del tablero del jugador. Devuelve qué pasó. */
     public Resultado voltear(int jugador, int fila, int col) {
-        if (isTerminado() || esperando || jugador != turno) return Resultado.IGNORADO;
+        if (isTerminado() || esperando || bloqueado || jugador != turno) return Resultado.IGNORADO;
         if (encontrada[jugador][fila][col]) return Resultado.IGNORADO;
 
         // primera carta
@@ -116,7 +118,7 @@ public class ModeloClasico {
      * Devuelve true si se acabó el tiempo y se perdió el turno.
      */
     public boolean descontar(long ms) {
-        if (isTerminado() || esperando) return false;
+        if (isTerminado() || esperando || bloqueado) return false;
 
         // mientras sale el aviso de turno no se gasta tiempo
         if (graciaMs > 0) {
@@ -190,6 +192,10 @@ public class ModeloClasico {
         turnoCambio = false;
         return r;
     }
+
+    /** Mientras esté bloqueado no se pueden voltear cartas y el reloj no avanza. */
+    public void setBloqueado(boolean bloqueado) { this.bloqueado = bloqueado; }
+    public boolean isBloqueado() { return bloqueado; }
 
     public int getSegundosRestantes() { return (int) Math.ceil(Math.max(0, tiempoRestanteMs) / 1000.0); }
 

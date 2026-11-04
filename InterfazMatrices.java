@@ -31,6 +31,17 @@ public class InterfazMatrices extends JPanel {
     private static final double BOTON_CENTRO_X = 0.485;
     private static final double BOTON_Y = 0.05;
 
+    // Personajes de las animaciones: uno parado encima de cada matriz
+    private static final double PERSONAJE_ALTO = 0;     // alto de los personajes (fracción del alto de la ventana)
+    private static final int PERSONAJE_DESPLAZ_X = 0;      // jugador 1: píxeles desde el centro de su matriz (positivo = derecha)
+    private static final int PERSONAJE2_DESPLAZ_X = 0;     // jugador 2: igual, desde el centro de su matriz
+    private static final int PERSONAJE_AJUSTE_PIES_Y = 30; // píxeles extra: positivo baja los pies, negativo los sube
+
+    // Choque de poderes: aparece entre los dos personajes
+    private static final double CHOQUE_ANCHO = 0.46;       // ancho del choque (fracción del ancho de la ventana)
+    private static final int CHOQUE_DESPLAZ_X = 0;         // píxeles desde el centro entre los dos (positivo = derecha)
+    private static final int CHOQUE_ELEVACION = 40;        // píxeles por encima de los pies de los personajes (positivo = sube)
+
     // Colores de las celdas según su estado
     private static final Color FONDO_OCULTA = new Color(25, 15, 45, 170);
     private static final Color FONDO_VISIBLE = new Color(70, 45, 125, 215);
@@ -46,6 +57,9 @@ public class InterfazMatrices extends JPanel {
 
     private BufferedImage fondo;
     private Clip sonidoClic;
+    private Animador animador;        // personaje del jugador 1
+    private Animador animadorJ2;      // personaje del jugador 2
+    private Animador animadorChoque;  // choque de poderes entre los dos
 
     private final Celda[][] matrizA = new Celda[ModeloClasico.N][ModeloClasico.N];
     private final Celda[][] matrizB = new Celda[ModeloClasico.N][ModeloClasico.N];
@@ -74,6 +88,13 @@ public class InterfazMatrices extends JPanel {
 
         cargarFondo();
         cargarSonido();
+        animador = new Animador(this);
+        // jugador 2: usa la carpeta "animaciones2"; si no existe, las de "animaciones" volteadas en espejo
+        animadorJ2 = new Animador(this, "animaciones2", "animaciones",
+                java.util.EnumSet.of(Animador.Animacion.INTRO, Animador.Animacion.PODER,
+                        Animador.Animacion.VICTORIA, Animador.Animacion.DERROTA));
+        animadorChoque = new Animador(this, "animaciones", null,
+                java.util.EnumSet.of(Animador.Animacion.CHOQUE));
 
         int zonaX0 = (int) (ANCHO * ZONA_X_INICIO);
         int zonaX1 = (int) (ANCHO * ZONA_X_FIN);
@@ -94,6 +115,17 @@ public class InterfazMatrices extends JPanel {
         JPanel panelB = crearPanelMatriz(matrizB, 1);
         panelB.setBounds(xInicio + anchoMatriz + separacion, y, anchoMatriz, altoMatriz);
         add(panelB);
+
+        // cada personaje queda centrado sobre su matriz, con los pies en el borde de arriba de su panel
+        // (así el título con el marcador sigue visible debajo de él)
+        int piesY = y + PERSONAJE_AJUSTE_PIES_Y;
+        int altoPersonaje = (int) (ALTO * PERSONAJE_ALTO);
+        animador.setAnclaje(xInicio + anchoMatriz / 2 + PERSONAJE_DESPLAZ_X, piesY, altoPersonaje);
+        animadorJ2.setAnclaje(xInicio + anchoMatriz + separacion + anchoMatriz / 2 + PERSONAJE2_DESPLAZ_X,
+                piesY, altoPersonaje);
+        // el choque va en el centro, entre los dos personajes (se escala por su ancho)
+        animadorChoque.setAnclaje(centroX + CHOQUE_DESPLAZ_X, piesY - CHOQUE_ELEVACION,
+                (int) (ANCHO * CHOQUE_ANCHO), true);
 
         btnVolver = new BotonDragonBall("Volver al menú");
         int anchoBoton = 140;
@@ -190,6 +222,13 @@ public class InterfazMatrices extends JPanel {
     protected void paintChildren(Graphics g) {
         super.paintChildren(g);
         if (jugadorAviso >= 0) pintarAviso((Graphics2D) g.create());
+
+        // las animaciones (intro, poder, victoria, derrota) van encima de todo
+        Graphics2D g2 = (Graphics2D) g.create();
+        animador.pintar(g2);
+        animadorJ2.pintar(g2);
+        animadorChoque.pintar(g2); // el choque va encima de los personajes
+        g2.dispose();
     }
 
     private void pintarAviso(Graphics2D g2) {
@@ -349,6 +388,29 @@ public class InterfazMatrices extends JPanel {
 
     public void volverAlMenu() {
         if (alVolver != null) alVolver.run();
+    }
+
+    // ------------------------------------------------------------------
+    // Animaciones
+    // ------------------------------------------------------------------
+
+    /** Reproduce una animación del personaje de un jugador (0 o 1); 'alTerminar' puede ser null. */
+    public void reproducirAnimacion(int jugador, Animador.Animacion animacion, Runnable alTerminar) {
+        (jugador == 0 ? animador : animadorJ2).reproducir(animacion, alTerminar);
+    }
+
+    /** Reproduce el choque de poderes entre los dos personajes. */
+    public void reproducirChoque(Runnable alTerminar) {
+        animadorChoque.reproducir(Animador.Animacion.CHOQUE, alTerminar);
+    }
+
+    public void detenerChoque() { animadorChoque.detener(); }
+
+    /** Corta todas las animaciones y las quita de la pantalla. */
+    public void detenerAnimacion() {
+        animador.detener();
+        animadorJ2.detener();
+        animadorChoque.detener();
     }
 
     // Setters y getters
