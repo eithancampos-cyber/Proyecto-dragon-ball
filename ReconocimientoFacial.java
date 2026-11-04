@@ -1,8 +1,5 @@
 import java.awt.*;
 import javax.swing.*;
-import com.github.sarxos.webcam.Webcam;
-import com.github.sarxos.webcam.WebcamPanel;
-import com.github.sarxos.webcam.WebcamResolution;
 
 public class ReconocimientoFacial extends JPanel {
 
@@ -10,8 +7,8 @@ public class ReconocimientoFacial extends JPanel {
     private static final int ALTO = 540;
     private Runnable alFinalizar;
     
-    private Webcam webcam;
-    private WebcamPanel webcamPanel;
+    private Object webcam;
+    private Object webcamPanel;
     private JPanel contenedorCamara;
     private JLabel lblTitulo;
     private JButton btnCapturar;
@@ -71,14 +68,20 @@ public class ReconocimientoFacial extends JPanel {
         contenedorCamara.removeAll();
 
         try {
-            webcam = Webcam.getDefault();
+            Class<?> webcamClass = Class.forName("com.github.sarxos.webcam.Webcam");
+            webcam = webcamClass.getMethod("getDefault").invoke(null);
             if (webcam != null) {
-                webcam.setViewSize(WebcamResolution.VGA.getSize());
-                webcamPanel = new WebcamPanel(webcam);
-                webcamPanel.setFPSDisplayed(false);
-                webcamPanel.setDisplayDebugInfo(false);
-                webcamPanel.setMirrored(true);
-                contenedorCamara.add(webcamPanel, BorderLayout.CENTER);
+                Class<?> resolutionClass = Class.forName("com.github.sarxos.webcam.WebcamResolution");
+                Object vga = resolutionClass.getField("VGA").get(null);
+                Dimension size = (Dimension) resolutionClass.getMethod("getSize").invoke(vga);
+                webcamClass.getMethod("setViewSize", Dimension.class).invoke(webcam, size);
+
+                Class<?> panelClass = Class.forName("com.github.sarxos.webcam.WebcamPanel");
+                webcamPanel = panelClass.getConstructor(webcamClass).newInstance(webcam);
+                panelClass.getMethod("setFPSDisplayed", boolean.class).invoke(webcamPanel, false);
+                panelClass.getMethod("setDisplayDebugInfo", boolean.class).invoke(webcamPanel, false);
+                panelClass.getMethod("setMirrored", boolean.class).invoke(webcamPanel, true);
+                contenedorCamara.add((Component) webcamPanel, BorderLayout.CENTER);
             } else {
                 mostrarMensajeError("⚠️ No se detectó ninguna cámara web.");
             }
@@ -100,12 +103,14 @@ public class ReconocimientoFacial extends JPanel {
     public void cerrarCamara() {
         try {
             if (webcamPanel != null) {
-                webcamPanel.stop();
+                webcamPanel.getClass().getMethod("stop").invoke(webcamPanel);
             }
-            if (webcam != null && webcam.isOpen()) {
-                webcam.close();
+            if (webcam != null && (Boolean) webcam.getClass().getMethod("isOpen").invoke(webcam)) {
+                webcam.getClass().getMethod("close").invoke(webcam);
             }
         } catch (Exception ignored) {}
+        webcamPanel = null;
+        webcam = null;
     }
 
     public void setAlFinalizar(Runnable accion) {

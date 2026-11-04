@@ -7,14 +7,14 @@ import javax.swing.Timer;
  * con lo que responde el modelo. Las reglas están todas en ModeloClasico.
  *
  * Animaciones:
- * Hay un personaje sobre la matriz de cada jugador y un choque de poderes entre los dos:
+ * Hay un personaje sobre la matriz de cada jugador:
  *  - INTRO: al empezar cada partida, los dos personajes a la vez (el juego y el reloj
  *    esperan a que terminen).
- *  - PODER: al terminar la intro, los dos personajes cargan su poder.
- *  - CHOQUE: cuando terminan los dos poderes, los poderes chocan en el centro y el choque
- *    se queda en su último frame durante toda la partida.
  *  - VICTORIA / DERROTA: al terminar la partida, el ganador celebra y el otro pierde
- *    (en empate los dos pierden). El choque desaparece.
+ *    (en empate los dos pierden).
+ *
+ * Botones de prueba: "Gana Jugador 1" y "Gana Jugador 2" fuerzan el final de la partida
+ * para ver las animaciones de victoria y derrota sin tener que jugar.
  */
 public class ControladorClasico {
 
@@ -25,6 +25,7 @@ public class ControladorClasico {
     private Timer temporizadorFallo;
     private long ultimoTick;
     private boolean introPendiente; // true = falta mostrar la intro de la partida actual
+    private boolean finalizando;    // true = la partida ya terminó y se están mostrando las animaciones finales
 
     public ControladorClasico(ModeloClasico modelo, InterfazMatrices vista) {
         this.modelo = modelo;
@@ -33,6 +34,9 @@ public class ControladorClasico {
         vista.setOyenteCelda(this::alTocarCelda);
         // al volver al menú se descarta la partida
         vista.getBtnVolver().addActionListener(e -> reiniciar());
+        // botones de prueba: fuerzan que gane el jugador 1 o el jugador 2
+        vista.getBtnGanaJ1().addActionListener(e -> forzarGanador(0));
+        vista.getBtnGanaJ2().addActionListener(e -> forzarGanador(1));
         // cada vez que se abre esta pantalla: intro si la partida es nueva, o aviso de turno si no
         vista.setAlMostrarse(this::arrancarPartida);
 
@@ -50,6 +54,7 @@ public class ControladorClasico {
         modelo.consumirCambioTurno();  // el aviso de turno sale después de la intro
         modelo.setBloqueado(true);     // no se juega mientras no termine la intro
         introPendiente = true;
+        finalizando = false;
         vista.reiniciarTablero();
         actualizarMarcadores();
     }
@@ -66,17 +71,9 @@ public class ControladorClasico {
         Runnable finIntro = juntar(2, () -> {
             modelo.setBloqueado(false);
             anunciarTurnoActual();
-            iniciarChoque();
         });
         vista.reproducirAnimacion(0, Animador.Animacion.INTRO, finIntro);
         vista.reproducirAnimacion(1, Animador.Animacion.INTRO, finIntro);
-    }
-
-    /** Los dos personajes cargan su poder y, al terminar, los poderes chocan (queda hasta el final). */
-    private void iniciarChoque() {
-        Runnable finPoder = juntar(2, () -> vista.reproducirChoque(null));
-        vista.reproducirAnimacion(0, Animador.Animacion.PODER, finPoder);
-        vista.reproducirAnimacion(1, Animador.Animacion.PODER, finPoder);
     }
 
     /** Devuelve un Runnable que ejecuta 'accion' cuando se haya llamado 'veces' veces. */
@@ -135,7 +132,7 @@ public class ControladorClasico {
         actualizarMarcadores();
         refrescarTurno();
         if (modelo.isTerminado()) {
-            SwingUtilities.invokeLater(this::terminarPartida);
+            SwingUtilities.invokeLater(() -> terminarPartida(modelo.getGanador(), modelo.getMensajeFinal()));
         }
     }
 
@@ -157,18 +154,26 @@ public class ControladorClasico {
         if (!modelo.isTerminado()) vista.mostrarTurno(modelo.getTurno(), (int) ModeloClasico.MS_BANNER_TURNO);
     }
 
-    private void terminarPartida() {
-        int ganador = modelo.getGanador(); // 0, 1 o -1 (empate)
+    /** Botón de prueba: termina la partida dándole la victoria al jugador indicado (0 o 1). */
+    private void forzarGanador(int ganador) {
+        if (finalizando || modelo.isBloqueado()) return; // no vale durante la intro ni si ya se está terminando
+        if (temporizadorFallo != null) temporizadorFallo.stop(); // si había un par fallado esperando, se descarta
+        modelo.setBloqueado(true); // congela el juego y el reloj mientras suenan las animaciones
+        terminarPartida(ganador, "¡Gana el Jugador " + (ganador + 1) + "!\n(victoria forzada con el botón de prueba)");
+    }
+
+    /** Termina la partida: ganador = 0, 1 o -1 (empate); 'mensaje' es lo que se muestra al final. */
+    private void terminarPartida(int ganador, String mensaje) {
+        if (finalizando) return; // por si se pide terminar dos veces
+        finalizando = true;
 
         // el ganador celebra y el otro pierde; en empate pierden los dos
         Animador.Animacion animJ1 = (ganador == 0) ? Animador.Animacion.VICTORIA : Animador.Animacion.DERROTA;
         Animador.Animacion animJ2 = (ganador == 1) ? Animador.Animacion.VICTORIA : Animador.Animacion.DERROTA;
 
-        vista.detenerChoque();
-
         // las animaciones se quedan en el último frame mientras se muestra el resultado
         Runnable fin = juntar(2, () -> {
-            boolean otraPartida = vista.preguntarOtraPartida(modelo.getMensajeFinal());
+            boolean otraPartida = vista.preguntarOtraPartida(mensaje);
             reiniciar();
             if (otraPartida) arrancarPartida();
             else vista.volverAlMenu();

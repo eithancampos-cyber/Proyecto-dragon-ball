@@ -32,15 +32,10 @@ public class InterfazMatrices extends JPanel {
     private static final double BOTON_Y = 0.05;
 
     // Personajes de las animaciones: uno parado encima de cada matriz
-    private static final double PERSONAJE_ALTO = 0;     // alto de los personajes (fracción del alto de la ventana)
+    private static final double PERSONAJE_ALTO = 0;     // alto de los personajes (fracción del alto de la ventana; 0 = tamaño original del GIF)
     private static final int PERSONAJE_DESPLAZ_X = 0;      // jugador 1: píxeles desde el centro de su matriz (positivo = derecha)
     private static final int PERSONAJE2_DESPLAZ_X = 0;     // jugador 2: igual, desde el centro de su matriz
     private static final int PERSONAJE_AJUSTE_PIES_Y = 30; // píxeles extra: positivo baja los pies, negativo los sube
-
-    // Choque de poderes: aparece entre los dos personajes
-    private static final double CHOQUE_ANCHO = 0.46;       // ancho del choque (fracción del ancho de la ventana)
-    private static final int CHOQUE_DESPLAZ_X = 0;         // píxeles desde el centro entre los dos (positivo = derecha)
-    private static final int CHOQUE_ELEVACION = 40;        // píxeles por encima de los pies de los personajes (positivo = sube)
 
     // Colores de las celdas según su estado
     private static final Color FONDO_OCULTA = new Color(25, 15, 45, 170);
@@ -59,7 +54,6 @@ public class InterfazMatrices extends JPanel {
     private Clip sonidoClic;
     private Animador animador;        // personaje del jugador 1
     private Animador animadorJ2;      // personaje del jugador 2
-    private Animador animadorChoque;  // choque de poderes entre los dos
 
     private final Celda[][] matrizA = new Celda[ModeloClasico.N][ModeloClasico.N];
     private final Celda[][] matrizB = new Celda[ModeloClasico.N][ModeloClasico.N];
@@ -67,6 +61,8 @@ public class InterfazMatrices extends JPanel {
     private final JPanel[] paneles = new JPanel[2];
 
     private BotonDragonBall btnVolver;
+    private BotonDragonBall btnGanaJ1; // botón de prueba: hace ganar al jugador 1
+    private BotonDragonBall btnGanaJ2; // botón de prueba: hace ganar al jugador 2
     private Runnable alVolver;
     private OyenteCelda oyenteCelda;
     private Runnable alMostrarse; // se ejecuta cuando esta pantalla se muestra
@@ -88,13 +84,13 @@ public class InterfazMatrices extends JPanel {
 
         cargarFondo();
         cargarSonido();
+        // Las animaciones son GIF, uno por animación, en la carpeta "animaciones":
+        // intro.gif, victoria.gif y derrota.gif
         animador = new Animador(this);
-        // jugador 2: usa la carpeta "animaciones2"; si no existe, las de "animaciones" volteadas en espejo
+        // jugador 2: usa los GIF de la carpeta "animaciones2"; si falta alguno, usa el de "animaciones" volteado en espejo
         animadorJ2 = new Animador(this, "animaciones2", "animaciones",
-                java.util.EnumSet.of(Animador.Animacion.INTRO, Animador.Animacion.PODER,
+                java.util.EnumSet.of(Animador.Animacion.INTRO,
                         Animador.Animacion.VICTORIA, Animador.Animacion.DERROTA));
-        animadorChoque = new Animador(this, "animaciones", null,
-                java.util.EnumSet.of(Animador.Animacion.CHOQUE));
 
         int zonaX0 = (int) (ANCHO * ZONA_X_INICIO);
         int zonaX1 = (int) (ANCHO * ZONA_X_FIN);
@@ -123,9 +119,6 @@ public class InterfazMatrices extends JPanel {
         animador.setAnclaje(xInicio + anchoMatriz / 2 + PERSONAJE_DESPLAZ_X, piesY, altoPersonaje);
         animadorJ2.setAnclaje(xInicio + anchoMatriz + separacion + anchoMatriz / 2 + PERSONAJE2_DESPLAZ_X,
                 piesY, altoPersonaje);
-        // el choque va en el centro, entre los dos personajes (se escala por su ancho)
-        animadorChoque.setAnclaje(centroX + CHOQUE_DESPLAZ_X, piesY - CHOQUE_ELEVACION,
-                (int) (ANCHO * CHOQUE_ANCHO), true);
 
         btnVolver = new BotonDragonBall("Volver al menú");
         int anchoBoton = 140;
@@ -133,6 +126,17 @@ public class InterfazMatrices extends JPanel {
         btnVolver.setBounds((int) (ANCHO * BOTON_CENTRO_X) - anchoBoton / 2, (int) (ALTO * BOTON_Y), anchoBoton, altoBoton);
         btnVolver.addActionListener(e -> volverAlMenu());
         add(btnVolver);
+
+        // BOTONES DE PRUEBA: fuerzan que gane un jugador para ver sus animaciones de victoria y derrota.
+        // Jugador 1 arriba a la izquierda y jugador 2 arriba a la derecha. Se pueden borrar al terminar de probar.
+        int margenBoton = 15;
+        btnGanaJ1 = new BotonDragonBall("Gana Jugador 1");
+        btnGanaJ1.setBounds(margenBoton, (int) (ALTO * BOTON_Y), anchoBoton, altoBoton);
+        add(btnGanaJ1);
+
+        btnGanaJ2 = new BotonDragonBall("Gana Jugador 2");
+        btnGanaJ2.setBounds(ANCHO - margenBoton - anchoBoton, (int) (ALTO * BOTON_Y), anchoBoton, altoBoton);
+        add(btnGanaJ2);
 
         // detecta cuando la pantalla se muestra
         addHierarchyListener(e -> {
@@ -223,11 +227,10 @@ public class InterfazMatrices extends JPanel {
         super.paintChildren(g);
         if (jugadorAviso >= 0) pintarAviso((Graphics2D) g.create());
 
-        // las animaciones (intro, poder, victoria, derrota) van encima de todo
+        // las animaciones (intro, victoria, derrota) van encima de todo
         Graphics2D g2 = (Graphics2D) g.create();
         animador.pintar(g2);
         animadorJ2.pintar(g2);
-        animadorChoque.pintar(g2); // el choque va encima de los personajes
         g2.dispose();
     }
 
@@ -399,23 +402,17 @@ public class InterfazMatrices extends JPanel {
         (jugador == 0 ? animador : animadorJ2).reproducir(animacion, alTerminar);
     }
 
-    /** Reproduce el choque de poderes entre los dos personajes. */
-    public void reproducirChoque(Runnable alTerminar) {
-        animadorChoque.reproducir(Animador.Animacion.CHOQUE, alTerminar);
-    }
-
-    public void detenerChoque() { animadorChoque.detener(); }
-
     /** Corta todas las animaciones y las quita de la pantalla. */
     public void detenerAnimacion() {
         animador.detener();
         animadorJ2.detener();
-        animadorChoque.detener();
     }
 
     // Setters y getters
     public void setOyenteCelda(OyenteCelda oyente) { this.oyenteCelda = oyente; }
     public void setAlMostrarse(Runnable accion) { this.alMostrarse = accion; }
     public JButton getBtnVolver() { return btnVolver; }
+    public JButton getBtnGanaJ1() { return btnGanaJ1; }
+    public JButton getBtnGanaJ2() { return btnGanaJ2; }
     public void setAlVolver(Runnable accion) { this.alVolver = accion; }
 }
