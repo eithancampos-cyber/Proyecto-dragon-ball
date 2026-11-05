@@ -49,7 +49,7 @@ public class Animador {
 
     /** Las animaciones: nombre del GIF y si se queda en el último cuadro al terminar. */
     public enum Animacion {
-        INTRO("intro", false),
+        INTRO("intro", true),
         VICTORIA("victoria", true),
         DERROTA("derrota", true);
 
