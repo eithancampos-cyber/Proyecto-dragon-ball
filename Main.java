@@ -20,7 +20,8 @@ public class Main {
         // Swing debe ejecutarse en el hilo de eventos (EDT)
         SwingUtilities.invokeLater(() -> {
 
-            GestorMusica.iniciar(); // NUEVO: arranca la música de fondo (musica.wav)
+            GestorMusica.iniciar(); // arranca la música de fondo (musica.wav)
+            APIbccr.precargar();    // NUEVO: consulta el tipo de cambio del BCCR en segundo plano
 
             // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
