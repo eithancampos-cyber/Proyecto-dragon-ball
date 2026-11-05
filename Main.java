@@ -20,6 +20,8 @@ public class Main {
         // Swing debe ejecutarse en el hilo de eventos (EDT)
         SwingUtilities.invokeLater(() -> {
 
+            GestorMusica.iniciar(); // NUEVO: arranca la música de fondo (musica.wav)
+
             // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
             ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

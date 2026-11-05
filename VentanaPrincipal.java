@@ -20,8 +20,7 @@ public class VentanaPrincipal extends JPanel {
 
     private final Image fondo;
 
-    // Estado visual de la música (solo visual por ahora)
-    private boolean musicaActiva = true;
+    // NUEVO: se eliminó "private boolean musicaActiva = true;" porque ahora el estado vive en GestorMusica
 
     // Acciones de navegación que Main le asigna
     private Runnable alModoClasico;
@@ -39,10 +38,10 @@ public class VentanaPrincipal extends JPanel {
         btnAjustes.addActionListener(e -> {
             Window ventana = SwingUtilities.getWindowAncestor(this);
             JFrame padre = (ventana instanceof JFrame) ? (JFrame) ventana : null;
-            VentanaAjustes ajustes = new VentanaAjustes(padre, musicaActiva);
+            VentanaAjustes ajustes = new VentanaAjustes(padre, GestorMusica.isActiva()); // NUEVO: usa el estado real de la música
             ajustes.setVisible(true);
-            
-            musicaActiva = ajustes.isMusicaActiva();
+
+            // NUEVO: se eliminó "musicaActiva = ajustes.isMusicaActiva();" (el botón ya actualiza GestorMusica)
 
             // NUEVO: Verificamos si el usuario confirmó cerrar sesión en los ajustes
             if (ajustes.isCerrarSesionSolicitado()) {

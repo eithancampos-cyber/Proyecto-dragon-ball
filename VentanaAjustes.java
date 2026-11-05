@@ -39,6 +39,7 @@ public class VentanaAjustes extends JDialog {
         btnMusica.setBounds(220, 90, 140, 40);
         btnMusica.addActionListener(e -> {
             this.musicaActiva = !this.musicaActiva;
+            GestorMusica.setActiva(this.musicaActiva); // NUEVO: enciende o apaga el audio
             actualizarBotonMusica();
         });
         contenido.add(btnMusica);
