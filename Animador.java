@@ -387,6 +387,7 @@ public class Animador {
         destino.repaint();
     }
 
+
     private void recalcularEscala() {
         if (caja == null || tamano <= 0) return;
         escala = tamano / (double) caja.height;
@@ -423,7 +424,7 @@ public class Animador {
         return (maxX < 0) ? null : new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
-    /** Dibuja el cuadro actual con los pies del personaje sobre (centroX, piesY). */
+    /** Dibuja el cuadro actual con los pies del personaje sobre (centroX, piesY); */
     public void pintar(Graphics2D g2) {
         if (actual == null || caja == null) return;
         BufferedImage img = actual.cuadros.get(indice);
