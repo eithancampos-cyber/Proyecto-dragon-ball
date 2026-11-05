@@ -201,10 +201,6 @@ public class InterfazMatrices extends JPanel {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Aviso de turno (se dibuja encima, sin quitar nada)
-    // ------------------------------------------------------------------
-
     /** Muestra "Turno de jugador X" durante 'ms' milisegundos. */
     public void mostrarTurno(int jugador, int ms) {
         jugadorAviso = jugador;
@@ -278,9 +274,7 @@ public class InterfazMatrices extends JPanel {
         return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(0, Math.min(255, alpha)));
     }
 
-    // ------------------------------------------------------------------
     // Construcción de las matrices
-    // ------------------------------------------------------------------
 
     /** Celda que cambia de color según su estado. */
     private static class Celda extends JLabel {
@@ -352,9 +346,7 @@ public class InterfazMatrices extends JPanel {
         return (jugador == 0 ? matrizA : matrizB)[fila][col];
     }
 
-    // ------------------------------------------------------------------
     // Métodos que usa el controlador
-    // ------------------------------------------------------------------
 
     public void mostrarCarta(int jugador, int fila, int col, String texto) { celda(jugador, fila, col).mostrar(texto); }
     public void ocultarCarta(int jugador, int fila, int col) { celda(jugador, fila, col).ocultar(); }
