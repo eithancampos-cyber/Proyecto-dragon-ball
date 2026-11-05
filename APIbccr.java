@@ -16,8 +16,7 @@ import java.util.regex.Pattern;
 public class APIbccr {
 
     // ===== LO ÚNICO QUE TENÉS QUE CAMBIAR =====
-    private static final String TOKEN = "SU TOKEN AQUI";
-    // ==========================================
+    private static final String TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJCQ0NSLVNEREUiLCJzdWIiOiJlZWl0aGFuY3JAZ21haWwuY29tIiwiYXVkIjoiU0RERS1TaXRpb0V4dGVybm8iLCJleHAiOjI1MzQwMjMwMDgwMCwibmJmIjoxNzkzMjg0NDY1LCJpYXQiOjE3OTMyODQ0NjUsImp0aSI6ImYyZGY5ZGU5LTA4NmQtNDUzOC04NDA2LTA3OTNlN2FjMDJmYyIsImVtYWlsIjoiZWVpdGhhbmNyQGdtYWlsLmNvbSJ9._Iyct4wHhbggb3RQGzifGNVghsx9xuRD96YW86-bOYA";
 
     private static final int INDICADOR = 317; // 317 = compra, 318 = venta
 
