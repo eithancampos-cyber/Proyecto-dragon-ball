@@ -5,8 +5,9 @@ public class ReconocimientoFacial extends JPanel {
 
     private static final int ANCHO = 960;
     private static final int ALTO = 540;
+    private static final int IZQ = 40; // todo el bloque va pegado a la izquierda para no tapar a Goku (antes x = 280, centrado)
     private Runnable alFinalizar;
-    
+
     private Object webcam;
     private Object webcamPanel;
     private JPanel contenedorCamara;
@@ -17,22 +18,22 @@ public class ReconocimientoFacial extends JPanel {
         setPreferredSize(new Dimension(ANCHO, ALTO));
         setLayout(null);
 
-        Login.PanelFondo fondo = new Login.PanelFondo(Login.cargarImagen("fondo2.jpg"));
+        Login.PanelFondo fondo = new Login.PanelFondo(Login.cargarImagen("fondoLogin.gif"));
         fondo.setBounds(0, 0, ANCHO, ALTO);
         fondo.setLayout(null);
         add(fondo);
 
         lblTitulo = new Login.EtiquetaDragonBall("IDENTIFICACIÓN FACIAL");
-        lblTitulo.setBounds(280, 25, 400, 40);
+        lblTitulo.setBounds(IZQ, 25, 400, 40);
         fondo.add(lblTitulo);
 
         contenedorCamara = new JPanel(new BorderLayout());
-        contenedorCamara.setBounds(280, 80, 400, 300);
+        contenedorCamara.setBounds(IZQ, 80, 400, 300);
         contenedorCamara.setBorder(BorderFactory.createLineBorder(BotonDragonBall.AMARILLO, 3));
         fondo.add(contenedorCamara);
 
         btnCapturar = new BotonDragonBall("Escanear y Validar");
-        btnCapturar.setBounds(280, 400, 400, 40);
+        btnCapturar.setBounds(IZQ, 400, 400, 40);
         btnCapturar.setFont(new Font("Arial", Font.BOLD, 14));
         btnCapturar.addActionListener(e -> {
             cerrarCamara();
@@ -42,7 +43,7 @@ public class ReconocimientoFacial extends JPanel {
         fondo.add(btnCapturar);
 
         JButton btnVolver = new BotonDragonBall("Volver");
-        btnVolver.setBounds(280, 450, 400, 38);
+        btnVolver.setBounds(IZQ, 450, 400, 38);
         btnVolver.setFont(new Font("Arial", Font.BOLD, 13));
         btnVolver.addActionListener(e -> {
             cerrarCamara();

@@ -6,12 +6,16 @@ import javax.swing.Timer;
  * Recibe los clics de la vista, se los pasa al modelo y actualiza la vista
  * con lo que responde el modelo. Las reglas están todas en ModeloClasico.
  *
- * Animaciones:
- * Hay un personaje sobre la matriz de cada jugador:
- *  - INTRO: al empezar cada partida, los dos personajes a la vez (el juego y el reloj
+ * Animaciones (el estado vive en el modelo y la vista las dibuja; este controlador solo
+ * las hace avanzar con un Timer y avisa a la vista):
+ *  - INTRO: al empezar cada partida, sobre las dos matrices a la vez (el juego y el reloj
  *    esperan a que terminen).
- *  - VICTORIA / DERROTA: al terminar la partida, el ganador celebra y el otro pierde
- *    (en empate los dos pierden).
+ *  - VICTORIA / DERROTA: al terminar la partida, el ganador celebra (con su nombre debajo de
+ *    "VICTORIA") y el otro pierde (en empate los dos pierden).
+ *
+ * Pausa: la vista avisa con setAlPausar / setAlReanudar. Mientras está en pausa el reloj y las
+ * animaciones no avanzan, y si había un par fallado esperando a taparse, ese temporizador se
+ * detiene y se vuelve a arrancar al continuar.
  *
  * Botones de prueba: "Gana Jugador 1" y "Gana Jugador 2" fuerzan el final de la partida
  * para ver las animaciones de victoria y derrota sin tener que jugar.
@@ -23,15 +27,20 @@ public class ControladorClasico {
     private final ModeloClasico modelo;
     private final InterfazMatrices vista;
     private Timer temporizadorFallo;
+    private final Runnable[] alTerminarAnimacion = new Runnable[2]; // qué hacer cuando termina la animación de cada jugador
     private long ultimoTick;
     private boolean introPendiente; // true = falta mostrar la intro de la partida actual
     private boolean finalizando;    // true = la partida ya terminó y se están mostrando las animaciones finales
+    private boolean falloPausado;   // true = la pausa detuvo el temporizador que tapa las cartas falladas
 
     public ControladorClasico(ModeloClasico modelo, InterfazMatrices vista) {
         this.modelo = modelo;
         this.vista = vista;
 
         vista.setOyenteCelda(this::alTocarCelda);
+        // pausa: el menú de la vista avisa cuando se pausa y cuando se continúa
+        vista.setAlPausar(this::alPausar);
+        vista.setAlReanudar(this::alReanudar);
         // al volver al menú se descarta la partida
         vista.getBtnVolver().addActionListener(e -> reiniciar());
         // botones de prueba: fuerzan que gane el jugador 1 o el jugador 2
@@ -42,6 +51,7 @@ public class ControladorClasico {
 
         ultimoTick = System.currentTimeMillis();
         new Timer(PERIODO_RELOJ_MS, e -> latidoReloj()).start();
+        new Timer(ModeloClasico.PERIODO_ANIMACION_MS, e -> latidoAnimacion()).start();
 
         reiniciar();
     }
@@ -49,8 +59,11 @@ public class ControladorClasico {
     /** Deja todo listo para una partida nueva (la intro se reproduce en arrancarPartida). */
     private void reiniciar() {
         if (temporizadorFallo != null) temporizadorFallo.stop();
+        falloPausado = false; // una partida nueva no debe retomar el par fallado de la anterior
+        alTerminarAnimacion[0] = null;
+        alTerminarAnimacion[1] = null;
         vista.detenerAnimacion();
-        modelo.reiniciar();
+        modelo.reiniciar(); // también quita las animaciones del modelo
         modelo.consumirCambioTurno();  // el aviso de turno sale después de la intro
         modelo.setBloqueado(true);     // no se juega mientras no termine la intro
         introPendiente = true;
@@ -72,8 +85,54 @@ public class ControladorClasico {
             modelo.setBloqueado(false);
             anunciarTurnoActual();
         });
-        vista.reproducirAnimacion(0, Animador.Animacion.INTRO, finIntro);
-        vista.reproducirAnimacion(1, Animador.Animacion.INTRO, finIntro);
+        reproducirAnimacion(0, ModeloClasico.Animacion.INTRO, finIntro);
+        reproducirAnimacion(1, ModeloClasico.Animacion.INTRO, finIntro);
+    }
+
+    // ---------- Animaciones ----------
+
+    /** Empieza una animación en la matriz de un jugador; 'alTerminar' (puede ser null) se ejecuta al acabar. */
+    private void reproducirAnimacion(int jugador, ModeloClasico.Animacion animacion, Runnable alTerminar) {
+        modelo.iniciarAnimacion(jugador, animacion);
+        alTerminarAnimacion[jugador] = alTerminar;
+        enviarAnimacionAVista(jugador);
+    }
+
+    /** Pausa: detiene el temporizador de las cartas falladas si estaba corriendo. */
+    private void alPausar() {
+        if (temporizadorFallo != null && temporizadorFallo.isRunning()) {
+            temporizadorFallo.stop();
+            falloPausado = true;
+        }
+    }
+
+    /** Continuar: retoma el temporizador de las cartas falladas si la pausa lo había detenido. */
+    private void alReanudar() {
+        if (falloPausado && temporizadorFallo != null) {
+            falloPausado = false;
+            temporizadorFallo.start();
+        }
+    }
+
+    /** Hace avanzar un cuadro las animaciones que estén corriendo. */
+    private void latidoAnimacion() {
+        if (vista.isPausado()) return; // en pausa las animaciones se congelan
+        for (int j = 0; j < 2; j++) {
+            if (!modelo.isAnimando(j)) continue;
+            boolean termino = modelo.avanzarAnimacion(j);
+            enviarAnimacionAVista(j);
+            if (termino) {
+                Runnable cb = alTerminarAnimacion[j];
+                alTerminarAnimacion[j] = null;
+                if (cb != null) cb.run();
+            }
+        }
+    }
+
+    /** Le pasa a la vista lo que tiene que dibujar para la animación del jugador. */
+    private void enviarAnimacionAVista(int jugador) {
+        vista.mostrarAnimacion(jugador, modelo.getAnimacion(jugador), modelo.getProgresoAnimacion(jugador),
+                modelo.getCuadroAnimacion(jugador), modelo.getNombre(jugador), modelo.getParticulas(jugador));
     }
 
     /** Devuelve un Runnable que ejecuta 'accion' cuando se haya llamado 'veces' veces. */
@@ -89,7 +148,7 @@ public class ControladorClasico {
         long ahora = System.currentTimeMillis();
         long dt = Math.min(ahora - ultimoTick, 250);
         ultimoTick = ahora;
-        if (!vista.isShowing() || modelo.isTerminado()) return;
+        if (!vista.isShowing() || modelo.isTerminado() || vista.isPausado()) return; // en pausa el reloj no corre
 
         // se guarda la carta volteada antes, por si se acaba el tiempo y hay que taparla
         int fila = modelo.getFilaSeleccionada();
@@ -104,6 +163,7 @@ public class ControladorClasico {
     }
 
     private void alTocarCelda(int jugador, int fila, int col) {
+        if (vista.isPausado()) return; // el menú de pausa ya tapa las celdas; esto es solo por seguridad
         // se guarda la primera carta antes de voltear porque el modelo la borra si es pareja
         final int fila1 = modelo.getFilaSeleccionada();
         final int col1 = modelo.getColSeleccionada();
@@ -156,10 +216,10 @@ public class ControladorClasico {
 
     /** Botón de prueba: termina la partida dándole la victoria al jugador indicado (0 o 1). */
     private void forzarGanador(int ganador) {
-        if (finalizando || modelo.isBloqueado()) return; // no vale durante la intro ni si ya se está terminando
+        if (vista.isPausado() || finalizando || modelo.isBloqueado()) return; // no vale durante la intro ni si ya se está terminando
         if (temporizadorFallo != null) temporizadorFallo.stop(); // si había un par fallado esperando, se descarta
         modelo.setBloqueado(true); // congela el juego y el reloj mientras suenan las animaciones
-        terminarPartida(ganador, "¡Gana el Jugador " + (ganador + 1) + "!\n(victoria forzada con el botón de prueba)");
+        terminarPartida(ganador, "¡Gana " + modelo.getNombre(ganador) + "!\n(victoria forzada con el botón de prueba)");
     }
 
     /** Termina la partida: ganador = 0, 1 o -1 (empate); 'mensaje' es lo que se muestra al final. */
@@ -168,8 +228,8 @@ public class ControladorClasico {
         finalizando = true;
 
         // el ganador celebra y el otro pierde; en empate pierden los dos
-        Animador.Animacion animJ1 = (ganador == 0) ? Animador.Animacion.VICTORIA : Animador.Animacion.DERROTA;
-        Animador.Animacion animJ2 = (ganador == 1) ? Animador.Animacion.VICTORIA : Animador.Animacion.DERROTA;
+        ModeloClasico.Animacion animJ1 = (ganador == 0) ? ModeloClasico.Animacion.VICTORIA : ModeloClasico.Animacion.DERROTA;
+        ModeloClasico.Animacion animJ2 = (ganador == 1) ? ModeloClasico.Animacion.VICTORIA : ModeloClasico.Animacion.DERROTA;
 
         // las animaciones se quedan en el último frame mientras se muestra el resultado
         Runnable fin = juntar(2, () -> {
@@ -178,7 +238,7 @@ public class ControladorClasico {
             if (otraPartida) arrancarPartida();
             else vista.volverAlMenu();
         });
-        vista.reproducirAnimacion(0, animJ1, fin);
-        vista.reproducirAnimacion(1, animJ2, fin);
+        reproducirAnimacion(0, animJ1, fin);
+        reproducirAnimacion(1, animJ2, fin);
     }
 }

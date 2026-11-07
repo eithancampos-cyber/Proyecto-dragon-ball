@@ -5,10 +5,11 @@ import java.io.File;
 import java.net.URL;
 import javax.sound.sampled.*;
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 
 /**
- * VISTA del Modo Patrones: matriz de 5x5 sobre fondo5.jpg y un panel con la información del juego.
+ * VISTA del Modo Patrones: matriz de 5x5 sobre fondoPatrones.gif (animado) y un panel con la información del juego.
  * Solo dibuja y avisa de los clics; las reglas están en ModeloPatrones y el flujo del juego
  * en ControladorPatrones.
  * Es un JPanel para la ventana única de Main (su API hacia Main no cambia).
@@ -30,7 +31,7 @@ public class MatrizPatrones extends JPanel {
         void alTocar(int fila, int col);
     }
 
-    private final Image fondo = Login.cargarImagen("fondo5.jpg"); // reutiliza el cargador de Login
+    private final Image fondo = Login.cargarImagen("fondoPatrones.gif"); // reutiliza el cargador de Login
     private final Celda[][] matriz = new Celda[ModeloPatrones.N][ModeloPatrones.N];
     private Clip sonidoClic;
     private Runnable alVolver;       // navegación que Main le asigna
@@ -111,21 +112,15 @@ public class MatrizPatrones extends JPanel {
         sonidoClic.start();
     }
 
-    /** Dibuja la imagen cubriendo todo el panel sin deformarla (escala y recorta lo que sobra). */
+    /**
+     * MEJORA: antes se calculaba "cubrir y recortar" y se activaba la interpolación bilineal en
+     * cada repintado. Con un GIF el fondo se repinta varias veces por segundo, y esas dos cosas
+     * eran trabajo repetido (el GIF ya es 16:9 como la ventana). Ahora se usa el método compartido
+     * de Login, que estira la imagen sin esos cálculos.
+     */
     @Override
     protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        if (fondo == null) {
-            g.setColor(new Color(10, 30, 15)); // respaldo si falta la imagen
-            g.fillRect(0, 0, getWidth(), getHeight());
-            return;
-        }
-        double escala = Math.max((double) getWidth() / fondo.getWidth(this), (double) getHeight() / fondo.getHeight(this));
-        int w = (int) Math.round(fondo.getWidth(this) * escala), h = (int) Math.round(fondo.getHeight(this) * escala);
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.drawImage(fondo, (getWidth() - w) / 2, (getHeight() - h) / 2, w, h, this);
-        g2.dispose();
+        Login.pintarFondo(g, fondo, this, new Color(10, 30, 15)); // color de respaldo si falta la imagen
     }
 
     // ------------------------------------------------------------------
@@ -204,24 +199,35 @@ public class MatrizPatrones extends JPanel {
 
     /** Celda semitransparente cuyo color cambia según su estado. */
     private static class Celda extends JLabel {
+        // MEJORA: los 4 bordes se crean una sola vez. Antes cada llamada a setEstado creaba un
+        // Color y un LineBorder nuevos por celda (25 celdas cada vez que se pintaba el tablero).
+        private static final Border LINEA_NORMAL  = BorderFactory.createLineBorder(BORDE_NORMAL, 2);
+        private static final Border LINEA_MOSTRADA = BorderFactory.createLineBorder(Color.WHITE, 2);
+        private static final Border LINEA_ACERTADA = BorderFactory.createLineBorder(new Color(150, 255, 170), 2);
+        private static final Border LINEA_FALLADA  = BorderFactory.createLineBorder(new Color(255, 150, 150), 2);
+
         private Color colorFondo = FONDO_NORMAL;
+        private ModeloPatrones.Estado estado = ModeloPatrones.Estado.NORMAL;
 
         Celda() {
             super("", SwingConstants.CENTER);
             setOpaque(false);
-            setBorder(BorderFactory.createLineBorder(BORDE_NORMAL, 2));
+            setBorder(LINEA_NORMAL);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
         }
 
-        void setEstado(ModeloPatrones.Estado estado) {
-            Color borde = BORDE_NORMAL;
-            switch (estado) {
-                case MOSTRADA:  colorFondo = FONDO_MOSTRADA; borde = Color.WHITE; break;
-                case ACERTADA:  colorFondo = FONDO_ACERTADA; borde = new Color(150, 255, 170); break;
-                case FALLADA:   colorFondo = FONDO_FALLADA;  borde = new Color(255, 150, 150); break;
-                default:        colorFondo = FONDO_NORMAL;
+        void setEstado(ModeloPatrones.Estado nuevo) {
+            // MEJORA: si la celda ya está en ese estado no se cambia ni se repinta. pintarTablero
+            // recorre las 25 celdas, y casi siempre solo cambia una; con el fondo animado además
+            // ya se repinta todo por cada cuadro del GIF.
+            if (nuevo == estado) return;
+            estado = nuevo;
+            switch (nuevo) {
+                case MOSTRADA: colorFondo = FONDO_MOSTRADA; setBorder(LINEA_MOSTRADA); break;
+                case ACERTADA: colorFondo = FONDO_ACERTADA; setBorder(LINEA_ACERTADA); break;
+                case FALLADA:  colorFondo = FONDO_FALLADA;  setBorder(LINEA_FALLADA);  break;
+                default:       colorFondo = FONDO_NORMAL;   setBorder(LINEA_NORMAL);
             }
-            setBorder(BorderFactory.createLineBorder(borde, 2));
             repaint();
         }
 
