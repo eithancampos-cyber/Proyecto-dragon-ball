@@ -56,7 +56,7 @@ public class ReconocimientoFacial extends JPanel {
 
                 DatosRostro datosRostro = analizarYExtraerFirmaRostro(imagenCapturada);
                 if (!datosRostro.valido) {
-                    JOptionPane.showMessageDialog(this, "⚠️ No se detecta tu rostro con claridad.\nColócate enfrente de la cámara y asegúrate de tener buena luz.", "Rostro no detectado", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "⚠️ No se detecta tu rostro con claridad.\nColócate enfrente de la cámara.", "Rostro no detectado", JOptionPane.WARNING_MESSAGE);
                     return; 
                 }
 
@@ -68,7 +68,7 @@ public class ReconocimientoFacial extends JPanel {
                     
                     boolean guardado = modeloUsuarios.guardarRostroUsuario(usuarioObjetivo, datosRostro.firma);
                     if (guardado) {
-                        JOptionPane.showMessageDialog(this, "¡Rostro de " + usuarioObjetivo + " registrado y asociado con éxito!");
+                        JOptionPane.showMessageDialog(this, "¡Rostro registrado con éxito para " + usuarioObjetivo + "!");
                         cerrarCamara();
                         if (alFinalizar != null) alFinalizar.run();
                     } else {
@@ -89,7 +89,7 @@ public class ReconocimientoFacial extends JPanel {
                     boolean identidadValida = modeloUsuarios.validarRostroUsuario(usuarioObjetivo, datosRostro.firma);
 
                     if (!identidadValida) {
-                        JOptionPane.showMessageDialog(this, "❌ Acceso denegado: El rostro capturado NO coincide con el registrado para el usuario '" + usuarioObjetivo + "'.", "Fallo de Autenticación", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(this, "❌ ACCESO DENEGADO: El rostro frente a la cámara NO coincide con el usuario '" + usuarioObjetivo + "'.", "Fallo de Autenticación", JOptionPane.ERROR_MESSAGE);
                         return;
                     }
 
@@ -211,12 +211,6 @@ public class ReconocimientoFacial extends JPanel {
         }
     }
 
-    /**
-     * Detección optimizada y balanceada:
-     * - Filtra por zona general central para evitar capturar objetos lejanos de los extremos.
-     * - Acepta un rango amplio de tonos de piel sin ser tan restrictivo con las sombras.
-     * - Exige unas proporciones mínimas lógicas de cabeza humana.
-     */
     private DatosRostro analizarYExtraerFirmaRostro(Image img) {
         if (img == null) return new DatosRostro(false, "");
         
@@ -235,7 +229,6 @@ public class ReconocimientoFacial extends JPanel {
             int ancho = bimage.getWidth();
             int alto = bimage.getHeight();
 
-            // Rango flexible para centrar el rostro
             int minRoiX = (int) (ancho * 0.10);
             int maxRoiX = (int) (ancho * 0.90);
             int minRoiY = (int) (alto * 0.05);
@@ -251,7 +244,6 @@ public class ReconocimientoFacial extends JPanel {
                     int g = (rgb >> 8) & 0xFF;
                     int b = rgb & 0xFF;
 
-                    // Condición flexible de tono de piel natural
                     boolean esPiel = (r > 50 && g > 25 && b > 10) &&
                                      (r > g) && (r > b) &&
                                      (Math.abs(r - g) > 8);
@@ -266,16 +258,13 @@ public class ReconocimientoFacial extends JPanel {
                 }
             }
 
-            // 1. Umbral accesible de píxeles de piel (suficiente para una cara a distancia media)
-            if (totalPixelesPiel < 100) return new DatosRostro(false, "");
+            if (totalPixelesPiel < 120) return new DatosRostro(false, "");
 
             int bboxAncho = maxX - minX;
             int bboxAlto = maxY - minY;
 
-            // 2. Tamaños mínimos lógicos para descartar objetos pequeños o ruido aislado
             if (bboxAncho < 35 || bboxAlto < 45) return new DatosRostro(false, "");
 
-            // 3. Generar la firma biométrica dividiendo la zona detectada en una malla 3x3
             StringBuilder sb = new StringBuilder();
             int stepX = Math.max(1, bboxAncho / 3);
             int stepY = Math.max(1, bboxAlto / 3);

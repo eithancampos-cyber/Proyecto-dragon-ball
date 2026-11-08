@@ -15,10 +15,6 @@ import java.util.Map;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
-/**
- * MODELO de usuarios: registro y login con sus validaciones y soporte facial.
- * No sabe nada de Swing: solo guarda los usuarios y aplica las reglas.
- */
 public class ModeloUsuarios {
 
     public static final int USUARIO_MIN = 3;
@@ -144,7 +140,6 @@ public class ModeloUsuarios {
         usuarioActual = null;
     }
 
-    /** Guarda o actualiza la firma facial asociada a un usuario específico en el archivo. */
     public boolean guardarRostroUsuario(String usuario, String firmaFacial) {
         String llaveUsr = llave(usuario);
         String[] registro = usuarios.get(llaveUsr);
@@ -160,7 +155,6 @@ public class ModeloUsuarios {
         return guardar();
     }
 
-    /** Valida si la firma facial capturada coincide con la registrada para el usuario. */
     public boolean validarRostroUsuario(String usuario, String firmaCapturada) {
         String[] registro = usuarios.get(llave(usuario));
         if (registro == null || registro.length < 4) return false;
@@ -187,7 +181,9 @@ public class ModeloUsuarios {
                 diferenciaTotal += Math.abs(val1 - val2);
             }
             double promedioDiferencia = diferenciaTotal / p1.length;
-            return promedioDiferencia < 0.15;
+            
+            // Tolerancia ajustada a 0.14
+            return promedioDiferencia < 0.14;
         } catch (Exception e) {
             return false;
         }
@@ -217,7 +213,7 @@ public class ModeloUsuarios {
         if (!Files.exists(archivo)) return;
         try {
             for (String linea : Files.readAllLines(archivo, StandardCharsets.UTF_8)) {
-                String[] partes = linea.split(";", -1); // -1 para conservar campos vacíos finales
+                String[] partes = linea.split(";", -1);
                 if (partes.length >= 3) {
                     usuarios.put(llave(partes[0]), partes);
                 }
