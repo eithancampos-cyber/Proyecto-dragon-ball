@@ -16,8 +16,15 @@ public class ReconocimientoFacial extends JPanel {
     private JLabel lblTitulo;
     private JButton btnCapturar;
     private String modoActual = "LOGIN";
+    private String usuarioObjetivo = ""; 
+    private ModeloUsuarios modeloUsuarios;
 
     public ReconocimientoFacial() {
+        this(new ModeloUsuarios());
+    }
+
+    public ReconocimientoFacial(ModeloUsuarios modeloUsuarios) {
+        this.modeloUsuarios = modeloUsuarios != null ? modeloUsuarios : new ModeloUsuarios();
         setPreferredSize(new Dimension(ANCHO, ALTO));
         setLayout(null);
 
@@ -27,7 +34,7 @@ public class ReconocimientoFacial extends JPanel {
         add(fondo);
 
         lblTitulo = new Login.EtiquetaDragonBall("IDENTIFICACIÓN FACIAL");
-        lblTitulo.setBounds(IZQ, 25, 400, 40);
+        lblTitulo.setBounds(IZQ, 25, 500, 40);
         fondo.add(lblTitulo);
 
         contenedorCamara = new JPanel(new BorderLayout());
@@ -43,25 +50,51 @@ public class ReconocimientoFacial extends JPanel {
                 Image imagenCapturada = obtenerImagenWebcam();
                 
                 if (imagenCapturada == null) {
-                    JOptionPane.showMessageDialog(this, "⚠️ No se pudo capturar la imagen. Verifica la cámara.", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "⚠️ No se pudo capturar la imagen. Verifica la cámara.", "Error de Cámara", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
-                // VALIDACIÓN BLINDADA: EXIGE ROSTRO COMPLETO, PROPORCIÓN Y SIMETRÍA REAL
-                boolean rostroDetectado = esRostroHumanoCompletoReal(imagenCapturada);
-
-                if (!rostroDetectado) {
-                    JOptionPane.showMessageDialog(this, "Acceso denegado, rostro no encontrado", "Error de Validación", JOptionPane.WARNING_MESSAGE);
+                DatosRostro datosRostro = analizarYExtraerFirmaRostro(imagenCapturada);
+                if (!datosRostro.valido) {
+                    JOptionPane.showMessageDialog(this, "⚠️ No se detecta tu rostro con claridad.\nColócate enfrente de la cámara y asegúrate de tener buena luz.", "Rostro no detectado", JOptionPane.WARNING_MESSAGE);
                     return; 
                 }
 
-                cerrarCamara();
-                
                 if (modoActual.equals("REGISTRO")) {
-                    JOptionPane.showMessageDialog(this, "¡Rostro registrado con éxito!");
-                    if (alFinalizar != null) alFinalizar.run();
+                    if (usuarioObjetivo == null || usuarioObjetivo.trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(this, "⚠️ Error: No hay un usuario asociado para el registro facial.", "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    
+                    boolean guardado = modeloUsuarios.guardarRostroUsuario(usuarioObjetivo, datosRostro.firma);
+                    if (guardado) {
+                        JOptionPane.showMessageDialog(this, "¡Rostro de " + usuarioObjetivo + " registrado y asociado con éxito!");
+                        cerrarCamara();
+                        if (alFinalizar != null) alFinalizar.run();
+                    } else {
+                        JOptionPane.showMessageDialog(this, "❌ Error al guardar el rostro en el archivo.", "Error de Guardado", JOptionPane.ERROR_MESSAGE);
+                    }
+
                 } else {
-                    JOptionPane.showMessageDialog(this, "¡Identificación facial exitosa!");
+                    if (usuarioObjetivo == null || usuarioObjetivo.trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(this, "⚠️ Por favor ingresa primero tu usuario en la pantalla de login.", "Usuario Requerido", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+
+                    if (!modeloUsuarios.tieneRostroRegistrado(usuarioObjetivo)) {
+                        JOptionPane.showMessageDialog(this, "❌ El usuario '" + usuarioObjetivo + "' no tiene ningún rostro registrado todavía. Regístrate primero.", "Sin Registro Facial", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+
+                    boolean identidadValida = modeloUsuarios.validarRostroUsuario(usuarioObjetivo, datosRostro.firma);
+
+                    if (!identidadValida) {
+                        JOptionPane.showMessageDialog(this, "❌ Acceso denegado: El rostro capturado NO coincide con el registrado para el usuario '" + usuarioObjetivo + "'.", "Fallo de Autenticación", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    JOptionPane.showMessageDialog(this, "¡Identificación facial exitosa. Bienvenido, " + usuarioObjetivo + "!");
+                    cerrarCamara();
                     if (alEntrarAlJuego != null) {
                         alEntrarAlJuego.run();
                     } else if (alFinalizar != null) {
@@ -71,7 +104,7 @@ public class ReconocimientoFacial extends JPanel {
 
             } catch (Exception ex) {
                 ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "⚠️ Error al procesar el escaneo facial.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "⚠️ Error crítico al procesar el escaneo facial.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         fondo.add(btnCapturar);
@@ -87,13 +120,20 @@ public class ReconocimientoFacial extends JPanel {
     }
 
     public void configurarModo(String modo) {
+        configurarModo(modo, this.usuarioObjetivo);
+    }
+
+    public void configurarModo(String modo, String usuario) {
         this.modoActual = modo;
+        if (usuario != null && !usuario.trim().isEmpty()) {
+            this.usuarioObjetivo = usuario;
+        }
         if (modo.equals("REGISTRO")) {
-            lblTitulo.setText("REGISTRO FACIAL");
+            lblTitulo.setText("REGISTRO FACIAL: " + this.usuarioObjetivo);
             btnCapturar.setText("Capturar y Guardar Rostro");
         } else {
-            lblTitulo.setText("IDENTIFICACIÓN FACIAL");
-            btnCapturar.setText("Escanear y Validar");
+            lblTitulo.setText("LOGIN FACIAL: " + this.usuarioObjetivo);
+            btnCapturar.setText("Escanear y Validar Identidad");
         }
         iniciarCamara();
     }
@@ -148,13 +188,8 @@ public class ReconocimientoFacial extends JPanel {
         webcam = null;
     }
 
-    public void setAlFinalizar(Runnable accion) {
-        this.alFinalizar = accion;
-    }
-
-    public void setAlEntrarAlJuego(Runnable accion) {
-        this.alEntrarAlJuego = accion;
-    }
+    public void setAlFinalizar(Runnable accion) { this.alFinalizar = accion; }
+    public void setAlEntrarAlJuego(Runnable accion) { this.alEntrarAlJuego = accion; }
 
     private Image obtenerImagenWebcam() {
         try {
@@ -167,14 +202,23 @@ public class ReconocimientoFacial extends JPanel {
         return null;
     }
 
+    private static class DatosRostro {
+        boolean valido;
+        String firma;
+        DatosRostro(boolean valido, String firma) {
+            this.valido = valido;
+            this.firma = firma;
+        }
+    }
+
     /**
-     * Valida que el objeto frente a la cámara sea un rostro completo real mediante
-     * el análisis de los límites (Bounding Box), su proporción de altura/ancho y 
-     * su simetría horizontal estricta. Si tapas la mitad de la cara con la mano, 
-     * la asimetría se dispara y se rechaza inmediatamente.
+     * Detección optimizada y balanceada:
+     * - Filtra por zona general central para evitar capturar objetos lejanos de los extremos.
+     * - Acepta un rango amplio de tonos de piel sin ser tan restrictivo con las sombras.
+     * - Exige unas proporciones mínimas lógicas de cabeza humana.
      */
-    private boolean esRostroHumanoCompletoReal(Image img) {
-        if (img == null) return false;
+    private DatosRostro analizarYExtraerFirmaRostro(Image img) {
+        if (img == null) return new DatosRostro(false, "");
         
         try {
             BufferedImage bimage;
@@ -191,23 +235,28 @@ public class ReconocimientoFacial extends JPanel {
             int ancho = bimage.getWidth();
             int alto = bimage.getHeight();
 
-            int minX = ancho, maxX = 0, minY = alto, maxY = 0;
-            int totalPixelesPiel = 0;
-            boolean[][] esPielMatriz = new boolean[ancho][alto];
+            // Rango flexible para centrar el rostro
+            int minRoiX = (int) (ancho * 0.10);
+            int maxRoiX = (int) (ancho * 0.90);
+            int minRoiY = (int) (alto * 0.05);
+            int maxRoiY = (int) (alto * 0.95);
 
-            for (int y = 0; y < alto; y += 2) {
-                for (int x = 0; x < ancho; x += 2) {
+            int minX = maxRoiX, maxX = minRoiX, minY = maxRoiY, maxY = minRoiY;
+            int totalPixelesPiel = 0;
+
+            for (int y = minRoiY; y < maxRoiY; y += 2) {
+                for (int x = minRoiX; x < maxRoiX; x += 2) {
                     int rgb = bimage.getRGB(x, y);
                     int r = (rgb >> 16) & 0xFF;
                     int g = (rgb >> 8) & 0xFF;
                     int b = rgb & 0xFF;
 
-                    boolean esPiel = (r > 75 && g > 30 && b > 15) &&
-                                     (Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b)) > 12) &&
-                                     (r > g) && (r > b);
+                    // Condición flexible de tono de piel natural
+                    boolean esPiel = (r > 50 && g > 25 && b > 10) &&
+                                     (r > g) && (r > b) &&
+                                     (Math.abs(r - g) > 8);
 
                     if (esPiel) {
-                        esPielMatriz[x][y] = true;
                         totalPixelesPiel++;
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
@@ -217,53 +266,52 @@ public class ReconocimientoFacial extends JPanel {
                 }
             }
 
-            // 1. Si no hay suficiente volumen de piel, rechazar
-            if (totalPixelesPiel < 300) return false;
+            // 1. Umbral accesible de píxeles de piel (suficiente para una cara a distancia media)
+            if (totalPixelesPiel < 100) return new DatosRostro(false, "");
 
             int bboxAncho = maxX - minX;
             int bboxAlto = maxY - minY;
 
-            // 2. Validar tamaño mínimo de la cara
-            if (bboxAncho < 50 || bboxAlto < 70) return false;
+            // 2. Tamaños mínimos lógicos para descartar objetos pequeños o ruido aislado
+            if (bboxAncho < 35 || bboxAlto < 45) return new DatosRostro(false, "");
 
-            // 3. Validar proporción (Aspect Ratio): el rostro es más alto que ancho
-            double aspectRatio = (double) bboxAlto / bboxAncho;
-            if (aspectRatio < 1.0 || aspectRatio > 2.2) {
-                return false; 
-            }
+            // 3. Generar la firma biométrica dividiendo la zona detectada en una malla 3x3
+            StringBuilder sb = new StringBuilder();
+            int stepX = Math.max(1, bboxAncho / 3);
+            int stepY = Math.max(1, bboxAlto / 3);
 
-            // 4. Validar Simetría Horizontal estricta
-            int centroX = minX + bboxAncho / 2;
-            int pielIzquierda = 0;
-            int pielDerecha = 0;
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    int subMinX = minX + col * stepX;
+                    int subMaxX = (col == 2) ? maxX : subMinX + stepX;
+                    int subMinY = minY + row * stepY;
+                    int subMaxY = (row == 2) ? maxY : subMinY + stepY;
 
-            for (int y = minY; y <= maxY; y += 2) {
-                for (int x = minX; x <= maxX; x += 2) {
-                    if (x >= 0 && x < ancho && y >= 0 && y < alto && esPielMatriz[x][y]) {
-                        if (x < centroX) {
-                            pielIzquierda++;
-                        } else if (x > centroX) {
-                            pielDerecha++;
+                    int count = 0;
+                    int area = Math.max(1, (subMaxX - subMinX) * (subMaxY - subMinY) / 2);
+                    for (int y = subMinY; y <= subMaxY; y += 2) {
+                        for (int x = subMinX; x <= subMaxX; x += 2) {
+                            if (x >= 0 && x < ancho && y >= 0 && y < alto) {
+                                int rgb = bimage.getRGB(x, y);
+                                int r = (rgb >> 16) & 0xFF;
+                                int g = (rgb >> 8) & 0xFF;
+                                int b = rgb & 0xFF;
+                                if ((r > 50 && g > 25 && b > 10) && (r > g) && (r > b)) {
+                                    count++;
+                                }
+                            }
                         }
                     }
+                    double ratio = (double) count / area;
+                    sb.append(String.format(java.util.Locale.US, "%.3f", ratio)).append(",");
                 }
             }
 
-            int totalPielSimetria = pielIzquierda + pielDerecha;
-            if (totalPielSimetria == 0) return false;
-
-            double diferenciaSimetria = (double) Math.abs(pielIzquierda - pielDerecha) / totalPielSimetria;
-
-            // REGLA ABSOLUTA: Si tapas la mitad de la cara, la asimetría supera el 22% y se rechaza al instante
-            if (diferenciaSimetria > 0.22) {
-                return false; 
-            }
+            return new DatosRostro(true, sb.toString());
 
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
+            return new DatosRostro(false, "");
         }
-
-        return true; 
     }
 }

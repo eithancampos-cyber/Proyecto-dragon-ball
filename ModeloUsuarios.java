@@ -16,18 +16,8 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 /**
- * MODELO de usuarios: registro y login con sus validaciones.
+ * MODELO de usuarios: registro y login con sus validaciones y soporte facial.
  * No sabe nada de Swing: solo guarda los usuarios y aplica las reglas.
- *
- * Reglas del usuario:  3 a 15 caracteres, empieza con letra, solo letras (sin tildes), números y "_".
- * Reglas de la clave:  6 a 30 caracteres, sin espacios, con al menos una letra y un número,
- *                      y distinta del nombre de usuario.
- * El nombre de usuario no distingue mayúsculas ("Goku" y "goku" son el mismo usuario).
- *
- * Los usuarios se guardan en el archivo usuarios.txt (una línea por usuario: nombre;sal;hash).
- * La contraseña NUNCA se guarda en texto plano: se guarda su hash PBKDF2 con una sal aleatoria.
- *
- * Los métodos de validación devuelven null si todo está bien, o el mensaje de error para mostrar.
  */
 public class ModeloUsuarios {
 
@@ -40,7 +30,7 @@ public class ModeloUsuarios {
     private static final SecureRandom ALEATORIO = new SecureRandom();
 
     private final Path archivo;
-    // llave: usuario en minúsculas -> {nombre original, sal en Base64, hash en Base64}
+    // llave: usuario en minúsculas -> arreglo con [nombre, sal, hashClave, firmaFacial (opcional)]
     private final Map<String, String[]> usuarios = new LinkedHashMap<>();
     private String usuarioActual;
 
@@ -53,11 +43,6 @@ public class ModeloUsuarios {
         cargar();
     }
 
-    // ------------------------------------------------------------------
-    // Validaciones
-    // ------------------------------------------------------------------
-
-    /** Valida solo el formato del nombre de usuario (no revisa si ya existe). */
     public String validarUsuario(String usuario) {
         if (usuario == null || usuario.isEmpty()) {
             return "Escribe un nombre de usuario.";
@@ -72,7 +57,6 @@ public class ModeloUsuarios {
         return null;
     }
 
-    /** Valida el formato de la contraseña para el registro. */
     public String validarClave(String usuario, String clave) {
         if (clave == null || clave.isEmpty()) {
             return "Escribe una contraseña.";
@@ -105,11 +89,6 @@ public class ModeloUsuarios {
         return usuario != null && usuarios.containsKey(llave(usuario));
     }
 
-    // ------------------------------------------------------------------
-    // Registro y login
-    // ------------------------------------------------------------------
-
-    /** Registra un usuario nuevo. Devuelve null si se registró, o el mensaje de error. */
     public String registrar(String usuario, String clave, String confirmacion) {
         usuario = (usuario == null) ? "" : usuario.trim();
 
@@ -131,18 +110,18 @@ public class ModeloUsuarios {
         String[] registro = {
             usuario,
             Base64.getEncoder().encodeToString(sal),
-            Base64.getEncoder().encodeToString(derivar(clave, sal))
+            Base64.getEncoder().encodeToString(derivar(clave, sal)),
+            "" // Firma facial vacía inicialmente
         };
 
         usuarios.put(llave(usuario), registro);
         if (!guardar()) {
-            usuarios.remove(llave(usuario)); // no se queda registrado en memoria si no se pudo guardar
+            usuarios.remove(llave(usuario));
             return "No se pudo guardar el registro en el archivo " + archivo + ".";
         }
         return null;
     }
 
-    /** Valida las credenciales. Devuelve null si son correctas (y deja el usuario como activo). */
     public String iniciarSesion(String usuario, String clave) {
         usuario = (usuario == null) ? "" : usuario.trim();
 
@@ -150,7 +129,6 @@ public class ModeloUsuarios {
         if (clave == null || clave.isEmpty()) return "Escribe tu contraseña.";
 
         String[] registro = usuarios.get(llave(usuario));
-        // El mismo mensaje si el usuario no existe o la clave está mal: no se revela cuál falló
         if (registro == null || !claveCorrecta(registro, clave)) {
             return "Usuario o contraseña incorrectos.";
         }
@@ -158,7 +136,6 @@ public class ModeloUsuarios {
         return null;
     }
 
-    /** Nombre del usuario que inició sesión (null si nadie lo ha hecho). */
     public String getUsuarioActual() {
         return usuarioActual;
     }
@@ -167,9 +144,54 @@ public class ModeloUsuarios {
         usuarioActual = null;
     }
 
-    // ------------------------------------------------------------------
-    // Hash y archivo
-    // ------------------------------------------------------------------
+    /** Guarda o actualiza la firma facial asociada a un usuario específico en el archivo. */
+    public boolean guardarRostroUsuario(String usuario, String firmaFacial) {
+        String llaveUsr = llave(usuario);
+        String[] registro = usuarios.get(llaveUsr);
+        if (registro == null) return false;
+
+        String[] nuevoRegistro = new String[]{
+            registro[0], 
+            registro[1], 
+            registro[2], 
+            firmaFacial != null ? firmaFacial : ""
+        };
+        usuarios.put(llaveUsr, nuevoRegistro);
+        return guardar();
+    }
+
+    /** Valida si la firma facial capturada coincide con la registrada para el usuario. */
+    public boolean validarRostroUsuario(String usuario, String firmaCapturada) {
+        String[] registro = usuarios.get(llave(usuario));
+        if (registro == null || registro.length < 4) return false;
+        String firmaGuardada = registro[3];
+        if (firmaGuardada == null || firmaGuardada.isEmpty()) return false;
+
+        return compararFirmasFaciales(firmaGuardada, firmaCapturada);
+    }
+
+    public boolean tieneRostroRegistrado(String usuario) {
+        String[] registro = usuarios.get(llave(usuario));
+        return registro != null && registro.length >= 4 && registro[3] != null && !registro[3].isEmpty();
+    }
+
+    private boolean compararFirmasFaciales(String f1, String f2) {
+        try {
+            String[] p1 = f1.split(",");
+            String[] p2 = f2.split(",");
+            if (p1.length != p2.length) return false;
+            double diferenciaTotal = 0;
+            for (int i = 0; i < p1.length; i++) {
+                double val1 = Double.parseDouble(p1[i]);
+                double val2 = Double.parseDouble(p2[i]);
+                diferenciaTotal += Math.abs(val1 - val2);
+            }
+            double promedioDiferencia = diferenciaTotal / p1.length;
+            return promedioDiferencia < 0.15;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private static String llave(String usuario) {
         return usuario.trim().toLowerCase(Locale.ROOT);
@@ -188,15 +210,15 @@ public class ModeloUsuarios {
     private static boolean claveCorrecta(String[] registro, String clave) {
         byte[] sal = Base64.getDecoder().decode(registro[1]);
         byte[] esperado = Base64.getDecoder().decode(registro[2]);
-        return MessageDigest.isEqual(esperado, derivar(clave, sal)); // comparación de tiempo constante
+        return MessageDigest.isEqual(esperado, derivar(clave, sal));
     }
 
     private void cargar() {
         if (!Files.exists(archivo)) return;
         try {
             for (String linea : Files.readAllLines(archivo, StandardCharsets.UTF_8)) {
-                String[] partes = linea.split(";");
-                if (partes.length == 3) {
+                String[] partes = linea.split(";", -1); // -1 para conservar campos vacíos finales
+                if (partes.length >= 3) {
                     usuarios.put(llave(partes[0]), partes);
                 }
             }
@@ -208,7 +230,14 @@ public class ModeloUsuarios {
     private boolean guardar() {
         List<String> lineas = new ArrayList<>();
         for (String[] registro : usuarios.values()) {
-            lineas.add(registro[0] + ";" + registro[1] + ";" + registro[2]);
+            StringBuilder sb = new StringBuilder();
+            sb.append(registro[0]).append(";")
+              .append(registro[1]).append(";")
+              .append(registro[2]).append(";");
+            if (registro.length >= 4) {
+                sb.append(registro[3]);
+            }
+            lineas.add(sb.toString());
         }
         try {
             Files.write(archivo, lineas, StandardCharsets.UTF_8);
