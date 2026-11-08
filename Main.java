@@ -21,7 +21,7 @@ public class Main {
         SwingUtilities.invokeLater(() -> {
 
             GestorMusica.iniciar(); // arranca la música de fondo (musica.wav)
-            APIbccr.precargar();    // NUEVO: consulta el tipo de cambio del BCCR en segundo plano
+            APIbccr.precargar();    // consulta el tipo de cambio del BCCR en segundo plano
 
             // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
@@ -56,18 +56,21 @@ public class Main {
 
             // --- Registro y login con sus validaciones (modelo + controlador) ---
             ModeloUsuarios usuarios = new ModeloUsuarios();
-            new ControladorAcceso(usuarios, login, registro);
+            ControladorAcceso controladorAcceso = new ControladorAcceso(usuarios, login, registro);
 
             // --- Navegación entre pantallas ---
             login.setAlIrRegistro(() -> cartas.show(contenedor, REGISTRO));          // Login -> Registro
             registro.setAlGuardar(() -> cartas.show(contenedor, LOGIN));             // Registro -> Login (tras guardar)
             registro.setAlVolver(() -> cartas.show(contenedor, LOGIN));              // Registro -> Login sin guardar
-            login.setAlIniciarSesion(() -> cartas.show(contenedor, MENU));           // Login -> Menú
+            login.setAlIniciarSesion(() -> cartas.show(contenedor, MENU));          // Login -> Menú
             
-            // --- Navegación de Reconocimiento Facial (Con control dinámico de cámara) ---
+            // --- Navegación de Reconocimiento Facial (Con validación de usuario registrado) ---
             login.setAlLoginFacial(() -> {
-                reconocimientoFacial.configurarModo("LOGIN");
-                cartas.show(contenedor, FACIAL);
+                // Valida a través del controlador si el usuario existe antes de abrir la cámara
+                if (controladorAcceso.validarUsuarioParaFacial()) {
+                    reconocimientoFacial.configurarModo("LOGIN");
+                    cartas.show(contenedor, FACIAL);
+                }
             });
             
             registro.setAlCapturarRostro(() -> {
@@ -75,9 +78,16 @@ public class Main {
                 cartas.show(contenedor, FACIAL);
             });
 
+            // Si viene de Registro, al terminar vuelve al Login
             reconocimientoFacial.setAlFinalizar(() -> {
                 reconocimientoFacial.cerrarCamara();
                 cartas.show(contenedor, LOGIN);
+            });
+
+            // Si viene de Login Facial y el rostro es válido, entra directo al juego (Menú principal)
+            reconocimientoFacial.setAlEntrarAlJuego(() -> {
+                reconocimientoFacial.cerrarCamara();
+                cartas.show(contenedor, MENU);
             });
 
             // Navegación de los modos de juego

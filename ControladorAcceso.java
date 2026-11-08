@@ -1,3 +1,5 @@
+import javax.swing.JOptionPane;
+
 /**
  * CONTROLADOR de Login y Registro.
  * Toma lo que escribió el usuario en las vistas, se lo pasa a ModeloUsuarios
@@ -40,5 +42,32 @@ public class ControladorAcceso {
         registro.limpiar();
         login.setUsuario(usuario);   // el Login ya aparece con el usuario escrito
         registro.registroExitoso();  // Main vuelve al Login
+    }
+
+    /**
+     * Valida si el usuario existe antes de permitirle usar el reconocimiento facial.
+     */
+    public boolean validarUsuarioParaFacial() {
+        String usuarioIngresado = login.getUsuario();
+
+        // 1. Validar que no esté vacío
+        if (usuarioIngresado == null || usuarioIngresado.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(login, 
+                "⚠️ Por favor, escribe tu nombre de usuario primero.", 
+                "Usuario Requerido", 
+                JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+
+        // 2. Verificar si el usuario NO está registrado usando el método existe() del modelo
+        if (!modelo.existe(usuarioIngresado)) {
+            JOptionPane.showMessageDialog(login, 
+                "❌ Acceso denegado: ¡El usuario no está registrado! Tienes que registrarte primero.", 
+                "Registro Requerido", 
+                JOptionPane.WARNING_MESSAGE);
+            return false; // Bloquea la cámara
+        }
+
+        return true; // El usuario sí existe, abre la cámara con normalidad
     }
 }
