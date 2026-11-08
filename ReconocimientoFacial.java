@@ -40,7 +40,6 @@ public class ReconocimientoFacial extends JPanel {
         btnCapturar.setFont(new Font("Arial", Font.BOLD, 14));
         btnCapturar.addActionListener(e -> {
             try {
-                // 1. Obtener la imagen actual de la cámara
                 Image imagenCapturada = obtenerImagenWebcam();
                 
                 if (imagenCapturada == null) {
@@ -48,15 +47,14 @@ public class ReconocimientoFacial extends JPanel {
                     return;
                 }
 
-                // 2. VALIDACIÓN ESTRICTA POR DETECCIÓN DE ROSTRO REAL
-                boolean rostroDetectado = detectarRostroReal(imagenCapturada);
+                // VALIDACIÓN BLINDADA: EXIGE ROSTRO COMPLETO, PROPORCIÓN Y SIMETRÍA REAL
+                boolean rostroDetectado = esRostroHumanoCompletoReal(imagenCapturada);
 
                 if (!rostroDetectado) {
                     JOptionPane.showMessageDialog(this, "Acceso denegado, rostro no encontrado", "Error de Validación", JOptionPane.WARNING_MESSAGE);
-                    return; // Bloquea totalmente el avance
+                    return; 
                 }
 
-                // 3. Proceso exitoso
                 cerrarCamara();
                 
                 if (modoActual.equals("REGISTRO")) {
@@ -169,7 +167,13 @@ public class ReconocimientoFacial extends JPanel {
         return null;
     }
 
-    private boolean detectarRostroReal(Image img) {
+    /**
+     * Valida que el objeto frente a la cámara sea un rostro completo real mediante
+     * el análisis de los límites (Bounding Box), su proporción de altura/ancho y 
+     * su simetría horizontal estricta. Si tapas la mitad de la cara con la mano, 
+     * la asimetría se dispara y se rechaza inmediatamente.
+     */
+    private boolean esRostroHumanoCompletoReal(Image img) {
         if (img == null) return false;
         
         try {
@@ -187,37 +191,71 @@ public class ReconocimientoFacial extends JPanel {
             int ancho = bimage.getWidth();
             int alto = bimage.getHeight();
 
-            int pixelesPiel = 0;
-            int pixelesTotalesAnalizados = 0;
+            int minX = ancho, maxX = 0, minY = alto, maxY = 0;
+            int totalPixelesPiel = 0;
+            boolean[][] esPielMatriz = new boolean[ancho][alto];
 
-            int inicioX = ancho / 4;
-            int finX = (ancho * 3) / 4;
-            int inicioY = alto / 4;
-            int finY = (alto * 3) / 4;
-
-            for (int y = inicioY; y < finY; y += 4) {
-                for (int x = inicioX; x < finX; x += 4) {
+            for (int y = 0; y < alto; y += 2) {
+                for (int x = 0; x < ancho; x += 2) {
                     int rgb = bimage.getRGB(x, y);
                     int r = (rgb >> 16) & 0xFF;
                     int g = (rgb >> 8) & 0xFF;
                     int b = rgb & 0xFF;
 
-                    boolean esTonoPiel = (r > 95 && g > 40 && b > 20) &&
-                                         (Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b)) > 15) &&
-                                         (Math.abs(r - g) > 15) && (r > g) && (r > b);
+                    boolean esPiel = (r > 75 && g > 30 && b > 15) &&
+                                     (Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b)) > 12) &&
+                                     (r > g) && (r > b);
 
-                    if (esTonoPiel) {
-                        pixelesPiel++;
+                    if (esPiel) {
+                        esPielMatriz[x][y] = true;
+                        totalPixelesPiel++;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
                     }
-                    pixelesTotalesAnalizados++;
                 }
             }
 
-            if (pixelesTotalesAnalizados == 0) return false;
+            // 1. Si no hay suficiente volumen de piel, rechazar
+            if (totalPixelesPiel < 300) return false;
 
-            double porcentajePiel = (double) pixelesPiel / pixelesTotalesAnalizados;
+            int bboxAncho = maxX - minX;
+            int bboxAlto = maxY - minY;
 
-            if (porcentajePiel < 0.08) {
+            // 2. Validar tamaño mínimo de la cara
+            if (bboxAncho < 50 || bboxAlto < 70) return false;
+
+            // 3. Validar proporción (Aspect Ratio): el rostro es más alto que ancho
+            double aspectRatio = (double) bboxAlto / bboxAncho;
+            if (aspectRatio < 1.0 || aspectRatio > 2.2) {
+                return false; 
+            }
+
+            // 4. Validar Simetría Horizontal estricta
+            int centroX = minX + bboxAncho / 2;
+            int pielIzquierda = 0;
+            int pielDerecha = 0;
+
+            for (int y = minY; y <= maxY; y += 2) {
+                for (int x = minX; x <= maxX; x += 2) {
+                    if (x >= 0 && x < ancho && y >= 0 && y < alto && esPielMatriz[x][y]) {
+                        if (x < centroX) {
+                            pielIzquierda++;
+                        } else if (x > centroX) {
+                            pielDerecha++;
+                        }
+                    }
+                }
+            }
+
+            int totalPielSimetria = pielIzquierda + pielDerecha;
+            if (totalPielSimetria == 0) return false;
+
+            double diferenciaSimetria = (double) Math.abs(pielIzquierda - pielDerecha) / totalPielSimetria;
+
+            // REGLA ABSOLUTA: Si tapas la mitad de la cara, la asimetría supera el 22% y se rechaza al instante
+            if (diferenciaSimetria > 0.22) {
                 return false; 
             }
 
