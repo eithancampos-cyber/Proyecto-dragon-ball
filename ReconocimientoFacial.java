@@ -17,7 +17,7 @@ public class ReconocimientoFacial extends JPanel {
     private JButton btnCapturar;
     private String modoActual = "LOGIN";
     private String usuarioObjetivo = ""; 
-    private ModeloUsuarios modeloUsuarios;
+    private final ModeloUsuarios modeloUsuarios;
 
     public ReconocimientoFacial() {
         this(new ModeloUsuarios());
@@ -66,7 +66,7 @@ public class ReconocimientoFacial extends JPanel {
                         return;
                     }
                     
-                    boolean guardado = modeloUsuarios.guardarRostroUsuario(usuarioObjetivo, datosRostro.firma);
+                    boolean guardado = this.modeloUsuarios.guardarRostroUsuario(usuarioObjetivo, datosRostro.firma);
                     if (guardado) {
                         JOptionPane.showMessageDialog(this, "¡Rostro registrado con éxito para " + usuarioObjetivo + "!");
                         cerrarCamara();
@@ -81,12 +81,12 @@ public class ReconocimientoFacial extends JPanel {
                         return;
                     }
 
-                    if (!modeloUsuarios.tieneRostroRegistrado(usuarioObjetivo)) {
+                    if (!this.modeloUsuarios.tieneRostroRegistrado(usuarioObjetivo)) {
                         JOptionPane.showMessageDialog(this, "❌ El usuario '" + usuarioObjetivo + "' no tiene ningún rostro registrado todavía. Regístrate primero.", "Sin Registro Facial", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
 
-                    boolean identidadValida = modeloUsuarios.validarRostroUsuario(usuarioObjetivo, datosRostro.firma);
+                    boolean identidadValida = this.modeloUsuarios.validarRostroUsuario(usuarioObjetivo, datosRostro.firma);
 
                     if (!identidadValida) {
                         JOptionPane.showMessageDialog(this, "❌ ACCESO DENEGADO: El rostro frente a la cámara NO coincide con el usuario '" + usuarioObjetivo + "'.", "Fallo de Autenticación", JOptionPane.ERROR_MESSAGE);
