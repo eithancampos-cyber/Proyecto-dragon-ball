@@ -33,12 +33,7 @@ public class ReconocimientoFacial extends JPanel {
     private JButton btnCapturar;
     private String textoBoton = "Escanear y Validar";
     private String modoActual = "LOGIN";
-<<<<<<< HEAD
     private boolean escaneando = false;
-=======
-    private String usuarioObjetivo = ""; 
-    private final ModeloUsuarios modeloUsuarios;
->>>>>>> origin/main
 
     public ReconocimientoFacial() {
         setPreferredSize(new Dimension(ANCHO, ALTO));
@@ -67,72 +62,7 @@ public class ReconocimientoFacial extends JPanel {
         btnCapturar = new BotonDragonBall("Escanear y Validar");
         btnCapturar.setBounds(IZQ, 400, 400, 40);
         btnCapturar.setFont(new Font("Arial", Font.BOLD, 14));
-<<<<<<< HEAD
         btnCapturar.addActionListener(e -> escanear());
-=======
-        btnCapturar.addActionListener(e -> {
-            try {
-                Image imagenCapturada = obtenerImagenWebcam();
-                
-                if (imagenCapturada == null) {
-                    JOptionPane.showMessageDialog(this, "⚠️ No se pudo capturar la imagen. Verifica la cámara.", "Error de Cámara", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-
-                DatosRostro datosRostro = analizarYExtraerFirmaRostro(imagenCapturada);
-                if (!datosRostro.valido) {
-                    JOptionPane.showMessageDialog(this, "⚠️ No se detecta tu rostro con claridad.\nColócate enfrente de la cámara.", "Rostro no detectado", JOptionPane.WARNING_MESSAGE);
-                    return; 
-                }
-
-                if (modoActual.equals("REGISTRO")) {
-                    if (usuarioObjetivo == null || usuarioObjetivo.trim().isEmpty()) {
-                        JOptionPane.showMessageDialog(this, "⚠️ Error: No hay un usuario asociado para el registro facial.", "Error", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    }
-                    
-                    boolean guardado = this.modeloUsuarios.guardarRostroUsuario(usuarioObjetivo, datosRostro.firma);
-                    if (guardado) {
-                        JOptionPane.showMessageDialog(this, "¡Rostro registrado con éxito para " + usuarioObjetivo + "!");
-                        cerrarCamara();
-                        if (alFinalizar != null) alFinalizar.run();
-                    } else {
-                        JOptionPane.showMessageDialog(this, "❌ Error al guardar el rostro en el archivo.", "Error de Guardado", JOptionPane.ERROR_MESSAGE);
-                    }
-
-                } else {
-                    if (usuarioObjetivo == null || usuarioObjetivo.trim().isEmpty()) {
-                        JOptionPane.showMessageDialog(this, "⚠️ Por favor ingresa primero tu usuario en la pantalla de login.", "Usuario Requerido", JOptionPane.WARNING_MESSAGE);
-                        return;
-                    }
-
-                    if (!this.modeloUsuarios.tieneRostroRegistrado(usuarioObjetivo)) {
-                        JOptionPane.showMessageDialog(this, "❌ El usuario '" + usuarioObjetivo + "' no tiene ningún rostro registrado todavía. Regístrate primero.", "Sin Registro Facial", JOptionPane.WARNING_MESSAGE);
-                        return;
-                    }
-
-                    boolean identidadValida = this.modeloUsuarios.validarRostroUsuario(usuarioObjetivo, datosRostro.firma);
-
-                    if (!identidadValida) {
-                        JOptionPane.showMessageDialog(this, "❌ ACCESO DENEGADO: El rostro frente a la cámara NO coincide con el usuario '" + usuarioObjetivo + "'.", "Fallo de Autenticación", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    }
-
-                    JOptionPane.showMessageDialog(this, "¡Identificación facial exitosa. Bienvenido, " + usuarioObjetivo + "!");
-                    cerrarCamara();
-                    if (alEntrarAlJuego != null) {
-                        alEntrarAlJuego.run();
-                    } else if (alFinalizar != null) {
-                        alFinalizar.run();
-                    }
-                }
-
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "⚠️ Error crítico al procesar el escaneo facial.", "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
->>>>>>> origin/main
         fondo.add(btnCapturar);
 
         JButton btnVolver = new BotonDragonBall("Volver");
