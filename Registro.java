@@ -15,6 +15,7 @@ public class Registro extends JPanel {
     private final Login.CampoClave txtPassword = new Login.CampoClave();
     private final Login.CampoClave txtConfirmPassword = new Login.CampoClave();
     private final JButton btnGuardar;
+    private final JButton btnCapturarRostro;
 
     private Runnable alGuardar;
     private Runnable alVolver;
@@ -51,7 +52,7 @@ public class Registro extends JPanel {
 
         // Botones
         y += altoFila + 18;
-        JButton btnCapturarRostro = Login.crearBoton("Registrar Rostro (Cámara)", izq, y, anchoBloque);
+        btnCapturarRostro = Login.crearBoton("Registrar Rostro (Cámara)", izq, y, anchoBloque);
         btnCapturarRostro.addActionListener(e -> {
             if (alCapturarRostro != null) alCapturarRostro.run();
         });
@@ -105,6 +106,12 @@ public class Registro extends JPanel {
         txtUsuario.setText("");
         txtPassword.setText("");
         txtConfirmPassword.setText("");
+        marcarRostroCapturado(false);
+    }
+
+    /** Cambia el texto del botón de la cámara para que se vea si ya hay un rostro capturado. */
+    public void marcarRostroCapturado(boolean capturado) {
+        btnCapturarRostro.setText(capturado ? "Rostro capturado - Repetir captura" : "Registrar Rostro (Cámara)");
     }
 
     public void mostrarError(String mensaje) {

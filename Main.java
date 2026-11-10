@@ -1,41 +1,52 @@
 import java.awt.*;
 import javax.swing.*;
 
+/**
+ * Clase principal: crea la ÚNICA ventana del programa, instancia todas las
+ * pantallas (cada una en su propia clase) y define cómo se navega entre ellas.
+ * Flujo: Login -> (Registro) -> Menú principal -> Matrices (clásico) o Matriz 5x5 (patrones) -> Menú principal
+ */
 public class Main {
 
+    // Nombres de cada "tarjeta" del CardLayout
     private static final String LOGIN = "LOGIN";
     private static final String REGISTRO = "REGISTRO";
     private static final String MENU = "MENU";
-    private static final String MATRICES = "MATRICES";
-    private static final String PATRONES = "PATRONES";
-    private static final String FACIAL = "FACIAL";
+    private static final String MATRICES = "MATRICES";    // Modo Clásico (6x6)
+    private static final String PATRONES = "PATRONES";    // Modo Patrones (5x5)
+    private static final String FACIAL = "FACIAL";          // Pantalla única reutilizable para la Cámara
 
     public static void main(String[] args) {
+        // Swing debe ejecutarse en el hilo de eventos (EDT)
         SwingUtilities.invokeLater(() -> {
 
-            GestorMusica.iniciar(); 
-            APIbccr.precargar();    
+            GestorMusica.iniciar(); // arranca la música de fondo (musica.wav)
+            APIbccr.precargar();    // consulta el tipo de cambio del BCCR en segundo plano
 
+            // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
             ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            // Área útil de la ventana: 960x540, el mismo tamaño de las pantallas con fondo.
             ventana.getContentPane().setPreferredSize(new Dimension(960, 540));
             ventana.pack();
             ventana.setLocationRelativeTo(null);
             ventana.setResizable(false);
 
+            // --- Contenedor que muestra una pantalla a la vez ---
             CardLayout cartas = new CardLayout();
             JPanel contenedor = new JPanel(cartas);
 
-            ModeloUsuarios usuarios = new ModeloUsuarios();
-
+            // Instancia de todas las pantallas base
             Login login = new Login();
             Registro registro = new Registro();
             VentanaPrincipal menu = new VentanaPrincipal();
             InterfazMatrices matrices = new InterfazMatrices();
-            MatrizPatrones patrones = new MatrizPatrones();
-            
-            ReconocimientoFacial reconocimientoFacial = new ReconocimientoFacial(usuarios);
+            MatrizPatrones patrones = new MatrizPatrones(); // matriz 5x5 del Modo Patrones
 
+            // Instancia ÚNICA para el Reconocimiento Facial (se adapta para Login o Registro)
+            ReconocimientoFacial reconocimientoFacial = new ReconocimientoFacial();
+
+            // Se agregan centradas para que se vean bien dentro de la ventana
             contenedor.add(centrar(login), LOGIN);
             contenedor.add(centrar(registro), REGISTRO);
             contenedor.add(centrar(menu), MENU);
@@ -43,59 +54,69 @@ public class Main {
             contenedor.add(centrar(patrones), PATRONES);
             contenedor.add(centrar(reconocimientoFacial), FACIAL);
 
-            ControladorAcceso controladorAcceso = new ControladorAcceso(usuarios, login, registro);
+            // --- Registro y login con sus validaciones (modelo + controlador) ---
+            ModeloUsuarios usuarios = new ModeloUsuarios();
+            ModeloRostros rostros = new ModeloRostros("rostros.txt"); // rostro de cada usuario (aparte de usuarios.txt)
+            ControladorAcceso controladorAcceso = new ControladorAcceso(usuarios, rostros, login, registro, reconocimientoFacial);
 
-            login.setAlIrRegistro(() -> cartas.show(contenedor, REGISTRO));          
-            registro.setAlGuardar(() -> cartas.show(contenedor, LOGIN));             
-            registro.setAlVolver(() -> cartas.show(contenedor, LOGIN));              
-            login.setAlIniciarSesion(() -> cartas.show(contenedor, MENU));          
-            
+            // --- Navegación entre pantallas ---
+            login.setAlIrRegistro(() -> cartas.show(contenedor, REGISTRO));          // Login -> Registro
+            registro.setAlGuardar(() -> cartas.show(contenedor, LOGIN));             // Registro -> Login (tras guardar)
+            registro.setAlVolver(() -> {                                             // Registro -> Login sin guardar
+                controladorAcceso.descartarRostroPendiente();                        // el rostro capturado no se guarda
+                cartas.show(contenedor, LOGIN);
+            });
+            login.setAlIniciarSesion(() -> cartas.show(contenedor, MENU));          // Login -> Menú
+
+            // --- Navegación de Reconocimiento Facial (Con validación de usuario registrado) ---
             login.setAlLoginFacial(() -> {
-                String usr = login.getUsuario();
+                // Valida a través del controlador si el usuario existe antes de abrir la cámara
                 if (controladorAcceso.validarUsuarioParaFacial()) {
-                    reconocimientoFacial.configurarModo("LOGIN", usr);
+                    reconocimientoFacial.configurarModo("LOGIN");
                     cartas.show(contenedor, FACIAL);
                 }
             });
-            
+
             registro.setAlCapturarRostro(() -> {
-                String usr = registro.getUsuario();
-                if (usr == null || usr.trim().isEmpty()) {
-                    registro.mostrarError("⚠️ Escribe un nombre de usuario antes de registrar tu rostro.");
-                    return;
+                // el rostro se asocia al nombre escrito: tiene que haber un usuario nuevo antes de abrir la cámara
+                if (controladorAcceso.validarUsuarioParaRegistroFacial()) {
+                    reconocimientoFacial.configurarModo("REGISTRO");
+                    cartas.show(contenedor, FACIAL);
                 }
-                reconocimientoFacial.configurarModo("REGISTRO", usr);
-                cartas.show(contenedor, FACIAL);
             });
 
-            reconocimientoFacial.setAlFinalizar(() -> {
-                reconocimientoFacial.cerrarCamara();
-                cartas.show(contenedor, LOGIN);
-            });
+            // Rostro capturado en el Registro: vuelve al Registro (con el formulario intacto) para pulsar "Guardar"
+            reconocimientoFacial.setAlRegistroCompletado(() -> cartas.show(contenedor, REGISTRO));
 
-            reconocimientoFacial.setAlEntrarAlJuego(() -> {
-                reconocimientoFacial.cerrarCamara();
-                cartas.show(contenedor, MENU);
-            });
+            // Login Facial exitoso (el rostro coincide con el usuario): entra directo al juego (Menú principal)
+            reconocimientoFacial.setAlLoginCompletado(() -> cartas.show(contenedor, MENU));
 
-            menu.setAlModoClasico(() -> cartas.show(contenedor, MATRICES));          
-            menu.setAlModoPatrones(() -> cartas.show(contenedor, PATRONES));         
-            matrices.setAlVolver(() -> cartas.show(contenedor, MENU));               
-            patrones.setAlVolver(() -> cartas.show(contenedor, MENU));               
+            // Botón "Volver" de la cámara (o demasiados intentos): regresa a la pantalla de donde vino
+            reconocimientoFacial.setAlVolver(() ->
+                    cartas.show(contenedor, "REGISTRO".equals(reconocimientoFacial.getModo()) ? REGISTRO : LOGIN));
 
+            // Navegación de los modos de juego
+            menu.setAlModoClasico(() -> cartas.show(contenedor, MATRICES));          // Menú -> Matrices (clásico)
+            menu.setAlModoPatrones(() -> cartas.show(contenedor, PATRONES));         // Menú -> Matriz 5x5 (patrones)
+            matrices.setAlVolver(() -> cartas.show(contenedor, MENU));               // Matrices -> Menú
+            patrones.setAlVolver(() -> cartas.show(contenedor, MENU));               // Matriz 5x5 -> Menú
+
+            // Conexión para que el botón de Cerrar Sesión en Ajustes devuelva al Login
             menu.setAlCerrarSesion(() -> {
                 usuarios.cerrarSesion();
                 cartas.show(contenedor, LOGIN);
             });
 
+            // --- Mostrar ---
             ventana.add(contenedor);
-            cartas.show(contenedor, LOGIN); 
+            cartas.show(contenedor, LOGIN); // la primera pantalla es el Login
             ventana.setVisible(true);
         });
     }
 
+    /** Envuelve un panel en otro que lo mantiene centrado y con su tamaño original. */
     private static JPanel centrar(JPanel panel) {
-        JPanel envoltorio = new JPanel(new GridBagLayout()); 
+        JPanel envoltorio = new JPanel(new GridBagLayout()); // GridBagLayout centra por defecto
         envoltorio.add(panel);
         return envoltorio;
     }
