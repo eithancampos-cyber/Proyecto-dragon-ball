@@ -26,11 +26,12 @@ public class Main {
             // --- Ventana única ---
             JFrame ventana = new JFrame("Memory Game");
             ventana.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            // Área útil de la ventana: 960x540, el mismo tamaño de las pantallas con fondo.
+            // Tamaño inicial: 960x540, el mismo tamaño de las pantallas con fondo.
             ventana.getContentPane().setPreferredSize(new Dimension(960, 540));
             ventana.pack();
             ventana.setLocationRelativeTo(null);
-            ventana.setResizable(false);
+            ventana.setMinimumSize(new Dimension(640, 360)); // tamaño mínimo al achicar
+            ventana.setResizable(true);                       // se puede agrandar/maximizar a voluntad
 
             // --- Contenedor que muestra una pantalla a la vez ---
             CardLayout cartas = new CardLayout();
@@ -46,7 +47,7 @@ public class Main {
             // Instancia ÚNICA para el Reconocimiento Facial (se adapta para Login o Registro)
             ReconocimientoFacial reconocimientoFacial = new ReconocimientoFacial();
 
-            // Se agregan centradas para que se vean bien dentro de la ventana
+            // Se agregan escaladas: cada pantalla se estira para llenar la ventana
             contenedor.add(centrar(login), LOGIN);
             contenedor.add(centrar(registro), REGISTRO);
             contenedor.add(centrar(menu), MENU);
@@ -114,10 +115,9 @@ public class Main {
         });
     }
 
-    /** Envuelve un panel en otro que lo mantiene centrado y con su tamaño original. */
+    /** Envuelve un panel en un PanelEscalable: se ve igual en cualquier tamaño de ventana. */
     private static JPanel centrar(JPanel panel) {
-        JPanel envoltorio = new JPanel(new GridBagLayout()); // GridBagLayout centra por defecto
-        envoltorio.add(panel);
-        return envoltorio;
+        // PanelEscalable estira la pantalla (960x540) para llenar la ventana, manteniendo la proporción
+        return new PanelEscalable(panel, 960, 540);
     }
 }

@@ -56,9 +56,9 @@ public class AnalizadorRostro {
     private static final double MIN_ALTO = 0.15;        // y 15% del alto
     private static final double MIN_AREA = 0.02;        // y tener al menos 2% de la imagen en tono piel
     private static final double MAX_AREA = 0.65;        // más de 65% = demasiado cerca / mano en la lente
-    private static final double PROPORCION_MIN = 0.75;  // alto/ancho del rostro (con algo de cuello)
+    private static final double PROPORCION_MIN = 0.40;  // alto/ancho del rostro (con algo de cuello)
     private static final double PROPORCION_MAX = 2.4;
-    private static final double RELLENO_MIN = 0.15;     // un rostro llena buena parte de su caja
+    private static final double RELLENO_MIN = 0.20;     // un rostro llena buena parte de su caja
     private static final double ASIMETRIA_MAX = 0.40;   // diferencia izquierda/derecha (tapar media cara la dispara)
 
     private AnalizadorRostro() { }

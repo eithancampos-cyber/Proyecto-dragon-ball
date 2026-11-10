@@ -25,10 +25,10 @@ public class InterfazMatrices extends JPanel {
     public static final int ANCHO = 960;
     public static final int ALTO = 540;
 
-    private static final double ZONA_X_INICIO = 0.04;
-    private static final double ZONA_X_FIN = 0.96;
-    private static final double ZONA_Y_INICIO = 0.38;
-    private static final double ZONA_Y_FIN = 0.96;
+    private static final double ZONA_X_INICIO = 0.02;
+    private static final double ZONA_X_FIN = 0.98;
+    private static final double ZONA_Y_INICIO = 0.25;
+    private static final double ZONA_Y_FIN = 0.98;
     private static final double BOTON_CENTRO_X = 0.485;
     private static final double BOTON_Y = 0.05;
 
@@ -339,7 +339,7 @@ public class InterfazMatrices extends JPanel {
             if (animTipo[j] != ModeloClasico.Animacion.NINGUNA) pintarAnimacion((Graphics2D) g.create(), j);
         }
     }
-
+    
     private void pintarAviso(Graphics2D g2) {
         double f = (System.currentTimeMillis() - inicioAviso) / (double) duracionAviso;
         // aparece rápido y se va desvaneciendo al final
@@ -412,6 +412,14 @@ public class InterfazMatrices extends JPanel {
             repaint();
         }
 
+        /** La letra crece con la celda (antes era de tamaño fijo y se veía chica en celdas grandes). */
+        @Override
+        public void setBounds(int x, int y, int ancho, int alto) {
+            super.setBounds(x, y, ancho, alto);
+            float tam = Math.max(12f, Math.min(ancho, alto) * 0.5f);
+            if (Math.abs(getFont().getSize2D() - tam) >= 1f) setFont(getFont().deriveFont(tam));
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -426,12 +434,12 @@ public class InterfazMatrices extends JPanel {
     private JPanel crearPanelMatriz(Celda[][] celdas, int jugador) {
         int n = celdas.length;
 
-        JPanel panel = new JPanel(new GridLayout(n, n, 2, 2));
+        JPanel panel = new JPanel(new GridLayout(n, n, 3, 3));
         panel.setOpaque(false);
         TitledBorder borde = BorderFactory.createTitledBorder(
                 BorderFactory.createEmptyBorder(), "Jugador " + (jugador + 1),
                 TitledBorder.CENTER, TitledBorder.TOP,
-                new Font("Arial", Font.BOLD, 12), Color.WHITE);
+                new Font("Arial", Font.BOLD, 14), Color.WHITE);
         panel.setBorder(borde);
         bordes[jugador] = borde;
         paneles[jugador] = panel;
