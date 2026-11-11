@@ -60,6 +60,9 @@ public class Login extends JPanel {
         });
         fondo.add(btnRegistro);
 
+        // Esquina superior izquierda: Ajustes (música y acerca del equipo, sin "Cerrar Sesión")
+        fondo.add(crearBotonAjustes(this));
+
         // Enter en el usuario pasa a la contraseña; Enter en la contraseña inicia sesión
         txtUsuario.addActionListener(e -> txtPassword.requestFocusInWindow());
         txtPassword.addActionListener(e -> btnIniciar.doClick());
@@ -91,6 +94,22 @@ public class Login extends JPanel {
         JButton boton = new BotonDragonBall(texto);
         boton.setBounds(x, y, ancho, ALTO_BOTON);
         boton.setFont(new Font("Arial", Font.BOLD, 13));
+        return boton;
+    }
+
+    /**
+     * Botón "Ajustes" de la esquina superior izquierda (compartido por Login y Registro).
+     * Abre VentanaAjustes sin la opción de cerrar sesión: el estado de la música vive en GestorMusica,
+     * así que es el mismo que usa el menú principal.
+     */
+    static JButton crearBotonAjustes(JComponent origen) {
+        JButton boton = new BotonDragonBall("Ajustes");
+        boton.setBounds(15, 15, 130, 40);
+        boton.addActionListener(e -> {
+            Window ventana = SwingUtilities.getWindowAncestor(origen);
+            JFrame padre = (ventana instanceof JFrame) ? (JFrame) ventana : null;
+            new VentanaAjustes(padre, GestorMusica.isActiva(), false).setVisible(true);
+        });
         return boton;
     }
 
