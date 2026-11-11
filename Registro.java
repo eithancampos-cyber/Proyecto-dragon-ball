@@ -71,6 +71,9 @@ public class Registro extends JPanel {
         });
         fondo.add(btnVolver);
 
+        // Esquina superior izquierda: Ajustes (música y acerca del equipo, sin "Cerrar Sesión")
+        fondo.add(Login.crearBotonAjustes(this));
+
         // Enter pasa al siguiente campo; Enter en el último guarda
         txtUsuario.addActionListener(e -> txtPassword.requestFocusInWindow());
         txtPassword.addActionListener(e -> txtConfirmPassword.requestFocusInWindow());
