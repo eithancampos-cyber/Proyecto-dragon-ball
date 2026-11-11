@@ -106,11 +106,12 @@ public class InterfazMatrices extends JPanel {
         JPanel panelB = crearPanelMatriz(matrizB, 1);
         panelB.setBounds(xInicio + anchoMatriz + separacion, y, anchoMatriz, altoMatriz);
         add(panelB);
+        mostrarSoloMatriz(0);
 
         int anchoBoton = 140;
         int altoBoton = 32;
 
-        // Botón de pausa (ocupa el lugar del antiguo "Volver al menú")
+        // Botón de pausa 
         btnPausa = new BotonDragonBall("Pausa");
         btnPausa.setBounds((int) (ANCHO * BOTON_CENTRO_X) - anchoBoton / 2, (int) (ALTO * BOTON_Y), anchoBoton, altoBoton);
         btnPausa.addActionListener(e -> pausar());
@@ -305,12 +306,21 @@ public class InterfazMatrices extends JPanel {
         }
     }
 
+    /** Deja visible solo la matriz del jugador indicado. */
+private void mostrarSoloMatriz(int jugador) {
+    for (int j = 0; j < 2; j++) {
+        paneles[j].setVisible(j == jugador);
+    }
+    repaint();
+}
+
     // ------------------------------------------------------------------
     // Aviso de turno (se dibuja encima, sin quitar nada)
     // ------------------------------------------------------------------
 
     /** Muestra "Turno de jugador X" durante 'ms' milisegundos. */
     public void mostrarTurno(int jugador, int ms) {
+        mostrarSoloMatriz(jugador);
         jugadorAviso = jugador;
         duracionAviso = ms;
         inicioAviso = System.currentTimeMillis();
@@ -336,6 +346,7 @@ public class InterfazMatrices extends JPanel {
 
         // las animaciones (intro, victoria, derrota) van encima de todo, cada una sobre su matriz
         for (int j = 0; j < 2; j++) {
+            if (!paneles[j].isVisible()) continue;
             if (animTipo[j] != ModeloClasico.Animacion.NINGUNA) pintarAnimacion((Graphics2D) g.create(), j);
         }
     }
@@ -512,8 +523,7 @@ public class InterfazMatrices extends JPanel {
     // Animaciones (la vista solo dibuja lo que le manda el controlador)
     // ------------------------------------------------------------------
 
-    private static final Color AURA_DERROTA = new Color(120, 120, 135);
-    private static final Color TEXTO_DERROTA = new Color(175, 175, 190);
+    
 
     private final ModeloClasico.Animacion[] animTipo =
             {ModeloClasico.Animacion.NINGUNA, ModeloClasico.Animacion.NINGUNA};
@@ -524,16 +534,20 @@ public class InterfazMatrices extends JPanel {
     private final List<ModeloClasico.Particula>[] animParticulas =
             new List[]{Collections.emptyList(), Collections.emptyList()};
 
+    
+
     /** Guarda cómo va la animación de un jugador y la redibuja. */
     public void mostrarAnimacion(int jugador, ModeloClasico.Animacion tipo, double progreso, int cuadro,
-                                 String nombre, List<ModeloClasico.Particula> particulas) {
-        animTipo[jugador] = tipo;
-        animProgreso[jugador] = progreso;
-        animCuadro[jugador] = cuadro;
-        animNombre[jugador] = nombre;
-        animParticulas[jugador] = particulas;
-        repaint();
-    }
+                             String nombre, List<ModeloClasico.Particula> particulas) {
+    if (tipo == ModeloClasico.Animacion.DERROTA) return; // ya no se usa
+    if (tipo == ModeloClasico.Animacion.VICTORIA) mostrarSoloMatriz(jugador);
+    animTipo[jugador] = tipo;
+    animProgreso[jugador] = progreso;
+    animCuadro[jugador] = cuadro;
+    animNombre[jugador] = nombre;
+    animParticulas[jugador] = particulas;
+    repaint();
+}
 
     /** Quita todas las animaciones de la pantalla. */
     public void detenerAnimacion() {
@@ -559,9 +573,6 @@ public class InterfazMatrices extends JPanel {
             case VICTORIA:
                 pintarVictoria(g, r, animCuadro[jugador], animProgreso[jugador], color,
                         animNombre[jugador], animParticulas[jugador]);
-                break;
-            case DERROTA:
-                pintarDerrota(g, r, animCuadro[jugador], animProgreso[jugador], animParticulas[jugador]);
                 break;
             default:
                 break;
@@ -629,32 +640,6 @@ public class InterfazMatrices extends JPanel {
             g.setColor(conAlpha(Color.WHITE, (int) (255 * (1 - cuadro / 8f))));
             g.fillRect(r.x, r.y, r.width, r.height);
         }
-    }
-
-    /** Derrota: sacudida, aura gris que se apaga, cenizas que caen y "DERROTA" apagado. */
-    private void pintarDerrota(Graphics2D g, Rectangle r, int cuadro, double p,
-                               List<ModeloClasico.Particula> particulas) {
-        int cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-
-        if (cuadro < 20) { // sacudida al inicio
-            double fuerza = 1 - cuadro / 20.0;
-            g.translate((int) (Math.sin(cuadro * 2.7) * 7 * fuerza), (int) (Math.cos(cuadro * 3.1) * 5 * fuerza));
-        }
-
-        g.setColor(conAlpha(new Color(5, 5, 12), (int) (190 * Math.min(1, p * 4))));
-        g.fillRect(r.x - 12, r.y - 12, r.width + 24, r.height + 24);
-
-        float radio = (float) Math.max(1, r.width * 0.5 * (1 - p * 0.85));
-        g.setPaint(new RadialGradientPaint(cx, cy, radio, new float[]{0f, 1f},
-                new Color[]{conAlpha(AURA_DERROTA, (int) (160 * (1 - p))), conAlpha(AURA_DERROTA, 0)}));
-        g.fillOval((int) (cx - radio), (int) (cy - radio), (int) (radio * 2), (int) (radio * 2));
-
-        for (ModeloClasico.Particula pa : particulas) {
-            g.setColor(conAlpha(AURA_DERROTA, (int) (255 * pa.getAlfa())));
-            g.fillOval(r.x + (int) (pa.getX() * r.width), r.y + (int) (pa.getY() * r.height), 6, 6);
-        }
-
-        textoCentrado(g, "DERROTA", cx, cy + 18, 56, TEXTO_DERROTA, (int) (255 * Math.min(1, cuadro / 15.0)));
     }
 
     /** Texto centrado en cx con la línea base en yBase, con contorno negro para que se lea sobre cualquier fondo. */
