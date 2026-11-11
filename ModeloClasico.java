@@ -210,15 +210,19 @@ public class ModeloClasico {
     // ---------- Final de la partida ----------
 
     public boolean isTerminado() {
-        return pares[0] == PARES && pares[1] == PARES;
+    return pares[0] == PARES || pares[1] == PARES;
     }
 
     /** 0 = gana jugador 1, 1 = gana jugador 2, -1 = empate. */
-    public int getGanador() {
-        if (intentos[0] < intentos[1]) return 0;
-        if (intentos[1] < intentos[0]) return 1;
-        return -1;
-    }
+    /** 0 = gana jugador 1, 1 = gana jugador 2, -1 = empate. Gana el primero en completar sus pares. */
+public int getGanador() {
+    if (pares[0] == PARES && pares[1] != PARES) return 0;
+    if (pares[1] == PARES && pares[0] != PARES) return 1;
+    // por si ambos estuvieran completos: gana quien tenga menos intentos
+    if (intentos[0] < intentos[1]) return 0;
+    if (intentos[1] < intentos[0]) return 1;
+    return -1;
+}
 
     /** Intentos del ganador (para el premio). -1 si hubo empate. */
     public int getIntentosGanador() {

@@ -50,17 +50,16 @@ public class AnalizadorRostro {
     private static final double[][] DESPLAZAMIENTOS = {{0, 0}, {-0.06, 0}, {0.06, 0}, {0, -0.06}, {0, 0.06}};
 
     // ---- Parámetros de la detección ----
-    private static final int PASO = 4;                  // se analiza 1 de cada 4 píxeles (rápido)
-    private static final double LUZ_MINIMA = 35;        // brillo medio (0-255) por debajo = muy oscuro
-    private static final double MIN_ANCHO = 0.12;       // el rostro debe medir al menos 12% del ancho de la imagen
-    private static final double MIN_ALTO = 0.15;        // y 15% del alto
-    private static final double MIN_AREA = 0.02;        // y tener al menos 2% de la imagen en tono piel
-    private static final double MAX_AREA = 0.65;        // más de 65% = demasiado cerca / mano en la lente
-    private static final double PROPORCION_MIN = 0.40;  // alto/ancho del rostro (con algo de cuello)
-    private static final double PROPORCION_MAX = 2.4;
-    private static final double RELLENO_MIN = 0.20;     // un rostro llena buena parte de su caja
-    private static final double ASIMETRIA_MAX = 0.40;   // diferencia izquierda/derecha (tapar media cara la dispara)
-
+    private static final int PASO = 4;
+    private static final double LUZ_MINIMA = 15;        // acepta imágenes bastante oscuras
+    private static final double MIN_ANCHO = 0.06;       // el rostro puede ser pequeño (6% del ancho)
+    private static final double MIN_ALTO = 0.08;        // 8% del alto
+    private static final double MIN_AREA = 0.008;       // 0.8% de piel en la imagen
+    private static final double MAX_AREA = 0.90;        // tolera estar muy cerca
+    private static final double PROPORCION_MIN = 0.25;
+    private static final double PROPORCION_MAX = 3.50;
+    private static final double RELLENO_MIN = 0.08;
+    private static final double ASIMETRIA_MAX = 0.80;   // tolera luz lateral fuerte o cara ladeada
     private AnalizadorRostro() { }
 
     // ------------------------------------------------------------------

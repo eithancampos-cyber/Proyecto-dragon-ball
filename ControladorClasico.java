@@ -69,6 +69,7 @@ public class ControladorClasico {
         introPendiente = true;
         finalizando = false;
         vista.reiniciarTablero();
+        vista.mostrarSoloMatriz(modelo.getTurno());
         actualizarMarcadores();
     }
 
@@ -171,7 +172,7 @@ public class ControladorClasico {
         ModeloClasico.Resultado resultado = modelo.voltear(jugador, fila, col);
         if (resultado == ModeloClasico.Resultado.IGNORADO) return;
 
-        vista.mostrarCarta(jugador, fila, col, modelo.getCarta(jugador, fila, col));
+        vista.mostrarCartaImagen(jugador, fila, col, modelo.getCarta(jugador, fila, col));
 
         if (resultado == ModeloClasico.Resultado.PAREJA) {
             vista.marcarEncontrada(jugador, fila1, col1);
@@ -224,21 +225,20 @@ public class ControladorClasico {
 
     /** Termina la partida: ganador = 0, 1 o -1 (empate); 'mensaje' es lo que se muestra al final. */
     private void terminarPartida(int ganador, String mensaje) {
-        if (finalizando) return; // por si se pide terminar dos veces
-        finalizando = true;
+    if (finalizando) return;
+    finalizando = true;
 
-        // el ganador celebra y el otro pierde; en empate pierden los dos
-        ModeloClasico.Animacion animJ1 = (ganador == 0) ? ModeloClasico.Animacion.VICTORIA : ModeloClasico.Animacion.DERROTA;
-        ModeloClasico.Animacion animJ2 = (ganador == 1) ? ModeloClasico.Animacion.VICTORIA : ModeloClasico.Animacion.DERROTA;
+    Runnable fin = () -> {
+        boolean otraPartida = vista.preguntarOtraPartida(mensaje);
+        reiniciar();
+        if (otraPartida) arrancarPartida();
+        else vista.volverAlMenu();
+    };
 
-        // las animaciones se quedan en el último frame mientras se muestra el resultado
-        Runnable fin = juntar(2, () -> {
-            boolean otraPartida = vista.preguntarOtraPartida(mensaje);
-            reiniciar();
-            if (otraPartida) arrancarPartida();
-            else vista.volverAlMenu();
-        });
-        reproducirAnimacion(0, animJ1, fin);
-        reproducirAnimacion(1, animJ2, fin);
-    }
+    if (ganador == 0 || ganador == 1) {
+        reproducirAnimacion(ganador, ModeloClasico.Animacion.VICTORIA, fin); // solo celebra el ganador
+    } else {
+        fin.run(); // empate: no hay victoria que mostrar
+        }
+    }   
 }

@@ -60,7 +60,7 @@ public class MatrizPatrones extends JPanel {
         cargarSonido();
 
         // Matriz grande: ocupa toda la parte central (x 25%-75%, y 11%-97%)
-        JPanel panelMatriz = crearPanelMatriz("Matriz 5x5 - Modo Patrones");
+       JPanel panelMatriz = crearPanelMatriz("Matriz " + ModeloPatrones.N + "x" + ModeloPatrones.N + " - Modo Patrones");
         panelMatriz.setBounds((int) (ANCHO * 0.25), (int) (ALTO * 0.11), (int) (ANCHO * 0.5), (int) (ALTO * 0.86));
         add(panelMatriz);
 

@@ -39,6 +39,34 @@ public class InterfazMatrices extends JPanel {
     private static final Color TEXTO_OCULTA = new Color(150, 120, 200);
     private static final Color TEXTO_ENCONTRADA = new Color(255, 215, 0);
     private static final Color DORADO = new Color(255, 215, 0);
+    private static final Image REVERSO = Login.cargarImagen("reverso.jpg");
+
+    /** Qué archivo corresponde a cada carta (texto que devuelve modelo.getCarta). */
+private static final java.util.Map<String, String> ARCHIVO_CARTA = new java.util.HashMap<>();
+static {
+    ARCHIVO_CARTA.put("A", "vegeta_1.png");
+    ARCHIVO_CARTA.put("B", "sr-kaioh_2.png");
+    ARCHIVO_CARTA.put("C", "raditz_3.png");
+    ARCHIVO_CARTA.put("D", "piccolo_4.png");
+    ARCHIVO_CARTA.put("E", "mestre-kame_5.png");
+    ARCHIVO_CARTA.put("F", "kaiohshin_6.png");
+    ARCHIVO_CARTA.put("G", "goten_7.png");
+    ARCHIVO_CARTA.put("H", "goku_8.png");
+    ARCHIVO_CARTA.put("I", "goku-children_9.png");
+    ARCHIVO_CARTA.put("J", "freeza_10.png");
+    ARCHIVO_CARTA.put("K", "chichi_11.png");
+    ARCHIVO_CARTA.put("L", "cell_12.png");
+    ARCHIVO_CARTA.put("M", "bulma_13.png");
+    ARCHIVO_CARTA.put("N", "android18_14.png");
+    ARCHIVO_CARTA.put("O", "android17_15.png");
+    ARCHIVO_CARTA.put("P", "Trunks_16.png");
+    ARCHIVO_CARTA.put("Q", "MajinBuu_17.png");
+    ARCHIVO_CARTA.put("R", "Gohan-Super-Saiyan_18.png");
+}
+
+// Imágenes de cartas ya cargadas (para no leer el archivo en cada volteo)
+private final java.util.Map<String, Image> imagenesCartas = new java.util.HashMap<>();
+
 
     /** Avisa cuando se toca una celda (lo usa el controlador). */
     public interface OyenteCelda {
@@ -91,20 +119,19 @@ public class InterfazMatrices extends JPanel {
         int zonaX1 = (int) (ANCHO * ZONA_X_FIN);
         int zonaY0 = (int) (ALTO * ZONA_Y_INICIO);
         int zonaY1 = (int) (ALTO * ZONA_Y_FIN);
-        int separacion = 24;
-        int anchoMatriz = (zonaX1 - zonaX0 - separacion) / 2;
+        int anchoMatriz = (zonaX1 - zonaX0) / 2;
         int altoMatriz = zonaY1 - zonaY0;
         int centroX = (zonaX0 + zonaX1) / 2;
-        int bloque = 2 * anchoMatriz + separacion;
-        int xInicio = centroX - bloque / 2;
         int y = zonaY0;
 
+        int xCentrada = centroX - anchoMatriz / 2;
+
         JPanel panelA = crearPanelMatriz(matrizA, 0);
-        panelA.setBounds(xInicio, y, anchoMatriz, altoMatriz);
+        panelA.setBounds(xCentrada, y, anchoMatriz, altoMatriz);
         add(panelA);
 
         JPanel panelB = crearPanelMatriz(matrizB, 1);
-        panelB.setBounds(xInicio + anchoMatriz + separacion, y, anchoMatriz, altoMatriz);
+        panelB.setBounds(xCentrada, y, anchoMatriz, altoMatriz);
         add(panelB);
         mostrarSoloMatriz(0);
 
@@ -187,6 +214,28 @@ public class InterfazMatrices extends JPanel {
         sonidoClic.setFramePosition(0);
         sonidoClic.start();
     }
+
+   /** Carga una imagen desde la carpeta ARCHIVOS_CARTA del proyecto. */
+private static Image cargarImagenLocal(String nombre) {
+    File archivo = new File("ARCHIVO_CARTA", nombre);
+    try {
+        if (archivo.exists()) return javax.imageio.ImageIO.read(archivo);
+
+        // por si algún día se empaqueta dentro de src/resources
+        URL recurso = InterfazMatrices.class.getResource("/ARCHIVO_CARTA/" + nombre);
+        if (recurso != null) return javax.imageio.ImageIO.read(recurso);
+    } catch (Exception e) {
+        System.err.println("Error leyendo " + nombre + ": " + e);
+    }
+
+    // si falla, dice qué ruta exacta buscó y qué hay dentro de la carpeta
+    System.err.println("No se encontró: " + archivo.getAbsolutePath());
+    String[] contenido = new File("ARCHIVO_CARTA").list();
+    System.err.println(contenido == null
+            ? "   -> la carpeta ARCHIVO_CARTA no existe en esa ubicación"
+            : "   -> la carpeta existe y contiene: " + java.util.Arrays.toString(contenido));
+    return null;
+}
 
     /**
      * MEJORA: el fondo se carga y se dibuja con el código compartido de Login (antes había una copia
@@ -307,12 +356,14 @@ public class InterfazMatrices extends JPanel {
     }
 
     /** Deja visible solo la matriz del jugador indicado. */
-private void mostrarSoloMatriz(int jugador) {
+    public void mostrarSoloMatriz(int jugador) {
     for (int j = 0; j < 2; j++) {
         paneles[j].setVisible(j == jugador);
     }
     repaint();
 }
+
+
 
     // ------------------------------------------------------------------
     // Aviso de turno (se dibuja encima, sin quitar nada)
@@ -398,48 +449,96 @@ private void mostrarSoloMatriz(int jugador) {
     // ------------------------------------------------------------------
     // Construcción de las matrices
     // ------------------------------------------------------------------
+/** Celda que cambia de color según su estado y puede mostrar una imagen. */
+private static class Celda extends JLabel {
+    private Color colorFondo = FONDO_OCULTA;
+    private Image imagen;             // imagen que se dibuja (reverso o cara); null = solo texto
+    private double alineacionY = 0.5; // 0 = recorta desde arriba (caras), 0.5 = centrado (reverso)
+    private boolean encontrada = false;
 
-    /** Celda que cambia de color según su estado. */
-    private static class Celda extends JLabel {
-        private Color colorFondo = FONDO_OCULTA;
+    Celda() {
+        super("?", SwingConstants.CENTER);
+        setOpaque(false);
+        setFont(new Font("Arial", Font.BOLD, 20));
+        setForeground(TEXTO_OCULTA);
+        setBorder(BorderFactory.createLineBorder(new Color(150, 120, 200)));
+        setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
 
-        Celda() {
-            super("?", SwingConstants.CENTER);
-            setOpaque(false);
-            setFont(new Font("Arial", Font.BOLD, 20));
-            setForeground(TEXTO_OCULTA);
-            setBorder(BorderFactory.createLineBorder(new Color(150, 120, 200)));
-            setCursor(new Cursor(Cursor.HAND_CURSOR));
-        }
-
-        void ocultar() { aplicar("?", TEXTO_OCULTA, FONDO_OCULTA); }
-        void mostrar(String texto) { aplicar(texto, Color.WHITE, FONDO_VISIBLE); }
-        void encontrada() { aplicar(getText(), TEXTO_ENCONTRADA, FONDO_ENCONTRADA); }
-
-        private void aplicar(String texto, Color letra, Color fondo) {
-            setText(texto);
-            setForeground(letra);
-            colorFondo = fondo;
-            repaint();
-        }
-
-        /** La letra crece con la celda (antes era de tamaño fijo y se veía chica en celdas grandes). */
-        @Override
-        public void setBounds(int x, int y, int ancho, int alto) {
-            super.setBounds(x, y, ancho, alto);
-            float tam = Math.max(12f, Math.min(ancho, alto) * 0.5f);
-            if (Math.abs(getFont().getSize2D() - tam) >= 1f) setFont(getFont().deriveFont(tam));
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setColor(colorFondo);
-            g2.fillRect(0, 0, getWidth(), getHeight());
-            g2.dispose();
-            super.paintComponent(g);
+    void ocultar() {
+        encontrada = false;
+        if (REVERSO != null) { // reverso de la carta; si no se cargó, vuelve el "?"
+            imagen = REVERSO;
+            alineacionY = 0.5;
+            aplicar("", TEXTO_OCULTA, FONDO_OCULTA);
+        } else {
+            imagen = null;
+            aplicar("?", TEXTO_OCULTA, FONDO_OCULTA);
         }
     }
+
+    void mostrar(String texto) {
+        encontrada = false;
+        imagen = null;
+        aplicar(texto, Color.WHITE, FONDO_VISIBLE);
+    }
+
+    void mostrarImagen(Image img) {
+        encontrada = false;
+        imagen = img;
+        alineacionY = 0.1;
+        aplicar("", Color.WHITE, FONDO_VISIBLE);
+    }
+
+    void encontrada() {
+        encontrada = true;
+        aplicar(getText(), TEXTO_ENCONTRADA, FONDO_ENCONTRADA);
+    }
+
+    private void aplicar(String texto, Color letra, Color fondo) {
+        setText(texto);
+        setForeground(letra);
+        colorFondo = fondo;
+        repaint();
+    }
+
+    /** La letra crece con la celda. */
+    @Override
+    public void setBounds(int x, int y, int ancho, int alto) {
+        super.setBounds(x, y, ancho, alto);
+        float tam = Math.max(12f, Math.min(ancho, alto) * 0.5f);
+        if (Math.abs(getFont().getSize2D() - tam) >= 1f) setFont(getFont().deriveFont(tam));
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setColor(colorFondo);
+        g2.fillRect(0, 0, getWidth(), getHeight());
+
+        if (imagen != null) {
+            int iw = imagen.getWidth(null), ih = imagen.getHeight(null);
+            if (iw > 0 && ih > 0) {
+                // "cubrir": escala para llenar la celda y recorta lo que sobra
+                double esc = Math.max(getWidth() / (double) iw, getHeight() / (double) ih);
+                int sw = (int) Math.min(iw, Math.round(getWidth() / esc));
+                int sh = (int) Math.min(ih, Math.round(getHeight() / esc));
+                int sx = (iw - sw) / 2;
+                int sy = (int) ((ih - sh) * alineacionY);
+                g2.drawImage(imagen, 0, 0, getWidth(), getHeight(), sx, sy, sx + sw, sy + sh, this);
+            } else {
+                g2.drawImage(imagen, 0, 0, getWidth(), getHeight(), this); // aún cargando
+            }
+            if (encontrada) { // tinte verde sobre las parejas encontradas
+                g2.setColor(new Color(20, 110, 50, 110));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }
+        }
+        g2.dispose();
+        super.paintComponent(g);
+    }
+}
 
     /** Crea el panel de un jugador con sus celdas. */
     private JPanel crearPanelMatriz(Celda[][] celdas, int jugador) {
@@ -484,6 +583,19 @@ private void mostrarSoloMatriz(int jugador) {
     public void mostrarCarta(int jugador, int fila, int col, String texto) { celda(jugador, fila, col).mostrar(texto); }
     public void ocultarCarta(int jugador, int fila, int col) { celda(jugador, fila, col).ocultar(); }
     public void marcarEncontrada(int jugador, int fila, int col) { celda(jugador, fila, col).encontrada(); }
+
+/** Muestra la imagen de la carta; si no hay imagen para ese texto, muestra el texto como antes. */
+    public void mostrarCartaImagen(int jugador, int fila, int col, String texto) {
+    Image img = imagenesCartas.get(texto);
+    if (img == null) {
+        String archivo = ARCHIVO_CARTA.get(texto);
+        img = (archivo != null) ? cargarImagenLocal(archivo) : null;
+        if (img != null) imagenesCartas.put(texto, img);
+    }
+    Celda c = celda(jugador, fila, col);
+    if (img == null) c.mostrar(texto);
+    else c.mostrarImagen(img);
+}
 
     /** Tapa todas las celdas. */
     public void reiniciarTablero() {

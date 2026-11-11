@@ -22,7 +22,7 @@ import java.util.Random;
  */
 public class ModeloPatrones {
 
-    public static final int N = 5;                        // matriz de N x N
+    public static final int N = 4;                        // matriz de N x N
     public static final int CASILLAS_INICIALES = 3;
     public static final long TIEMPO_TOTAL_MS = 12_000;
     public static final long TIEMPO_ENTRE_CASILLAS_MS = 2_000;
