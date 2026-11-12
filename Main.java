@@ -13,7 +13,7 @@ public class Main {
     private static final String REGISTRO = "REGISTRO";
     private static final String MENU = "MENU";
     private static final String MATRICES = "MATRICES";    // Modo Clásico (6x6)
-    private static final String PATRONES = "PATRONES";    // Modo Patrones (5x5)
+    private static final String PATRONES = "PATRONES";    // Modo Patrones (4x4)
     private static final String FACIAL = "FACIAL";          // Pantalla única reutilizable para la Cámara
 
     public static void main(String[] args) {
