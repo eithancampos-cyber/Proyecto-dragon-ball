@@ -37,11 +37,15 @@ public class Main {
             CardLayout cartas = new CardLayout();
             JPanel contenedor = new JPanel(cartas);
 
+            // Modelos compartidos: usuarios (sesión) y Mejores Jugadores (Top 5 del Modo Clásico)
+            ModeloUsuarios usuarios = new ModeloUsuarios();
+            ModeloMejoresJugadores mejoresJugadores = new ModeloMejoresJugadores();
+
             // Instancia de todas las pantallas base
             Login login = new Login();
             Registro registro = new Registro();
             VentanaPrincipal menu = new VentanaPrincipal();
-            InterfazMatrices matrices = new InterfazMatrices();
+            InterfazMatrices matrices = new InterfazMatrices(mejoresJugadores, usuarios::getUsuarioActual); // el Jugador 1 es el usuario con sesión
             MatrizPatrones patrones = new MatrizPatrones(); // matriz 5x5 del Modo Patrones
 
             // Instancia ÚNICA para el Reconocimiento Facial (se adapta para Login o Registro)
@@ -56,9 +60,11 @@ public class Main {
             contenedor.add(centrar(reconocimientoFacial), FACIAL);
 
             // --- Registro y login con sus validaciones (modelo + controlador) ---
-            ModeloUsuarios usuarios = new ModeloUsuarios();
             ModeloRostros rostros = new ModeloRostros("rostros.txt"); // rostro de cada usuario (aparte de usuarios.txt)
             ControladorAcceso controladorAcceso = new ControladorAcceso(usuarios, rostros, login, registro, reconocimientoFacial);
+
+            // Botón "Mejores Jugadores" del menú: muestra el Top 5
+            new ControladorMejoresJugadores(mejoresJugadores, menu);
 
             // --- Navegación entre pantallas ---
             login.setAlIrRegistro(() -> cartas.show(contenedor, REGISTRO));          // Login -> Registro

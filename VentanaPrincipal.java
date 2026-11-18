@@ -55,9 +55,7 @@ public class VentanaPrincipal extends JPanel {
         // Extremo superior derecho: Mejores jugadores
         btnMejoresJugadores = new BotonDragonBall("Mejores Jugadores");
         btnMejoresJugadores.setBounds(ANCHO - 195, 15, 180, 40);
-        btnMejoresJugadores.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this, "Aquí se mostraría el top 5 con sus premios");
-        });
+        // la acción la asigna ControladorMejoresJugadores (muestra el Top 5 con sus premios)
         add(btnMejoresJugadores);
 
         // Centro: botones de modo, lado a lado

@@ -1,3 +1,7 @@
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
@@ -17,6 +21,10 @@ import javax.swing.Timer;
  * animaciones no avanzan, y si había un par fallado esperando a taparse, ese temporizador se
  * detiene y se vuelve a arrancar al continuar.
  *
+ * Mejores Jugadores: al terminar una partida con ganador, se calcula su premio (APIbccr) y se
+ * registra en ModeloMejoresJugadores. El Jugador 1 es el usuario que inició sesión; si gana el
+ * Jugador 2 se le pide su nombre. Las victorias forzadas con los botones de prueba NO se registran.
+ *
  * Botones de prueba: "Gana Jugador 1" y "Gana Jugador 2" fuerzan el final de la partida
  * para ver las animaciones de victoria y derrota sin tener que jugar.
  */
@@ -26,6 +34,8 @@ public class ControladorClasico {
 
     private final ModeloClasico modelo;
     private final InterfazMatrices vista;
+    private final ModeloMejoresJugadores ranking;
+    private final Supplier<String> usuarioActual; // nombre del usuario con sesión iniciada (puede ser null)
     private Timer temporizadorFallo;
     private final Runnable[] alTerminarAnimacion = new Runnable[2]; // qué hacer cuando termina la animación de cada jugador
     private long ultimoTick;
@@ -33,9 +43,12 @@ public class ControladorClasico {
     private boolean finalizando;    // true = la partida ya terminó y se están mostrando las animaciones finales
     private boolean falloPausado;   // true = la pausa detuvo el temporizador que tapa las cartas falladas
 
-    public ControladorClasico(ModeloClasico modelo, InterfazMatrices vista) {
+    public ControladorClasico(ModeloClasico modelo, InterfazMatrices vista,
+                              ModeloMejoresJugadores ranking, Supplier<String> usuarioActual) {
         this.modelo = modelo;
         this.vista = vista;
+        this.ranking = ranking;
+        this.usuarioActual = usuarioActual;
 
         vista.setOyenteCelda(this::alTocarCelda);
         // pausa: el menú de la vista avisa cuando se pausa y cuando se continúa
@@ -75,6 +88,9 @@ public class ControladorClasico {
 
     /** Reproduce la intro si la partida es nueva; si no, solo anuncia el turno. */
     private void arrancarPartida() {
+        // el Jugador 1 es quien inició sesión (puede haber cambiado de usuario desde la última partida)
+        String usuario = usuarioActual.get();
+        modelo.setNombre(0, (usuario == null || usuario.trim().isEmpty()) ? "Jugador 1" : usuario);
         if (!introPendiente) {
             anunciarTurnoActual();
             return;
@@ -193,7 +209,7 @@ public class ControladorClasico {
         actualizarMarcadores();
         refrescarTurno();
         if (modelo.isTerminado()) {
-            SwingUtilities.invokeLater(() -> terminarPartida(modelo.getGanador(), modelo.getMensajeFinal()));
+            SwingUtilities.invokeLater(() -> terminarPartida(modelo.getGanador(), modelo.getMensajeFinal(), true));
         }
     }
 
@@ -220,25 +236,64 @@ public class ControladorClasico {
         if (vista.isPausado() || finalizando || modelo.isBloqueado()) return; // no vale durante la intro ni si ya se está terminando
         if (temporizadorFallo != null) temporizadorFallo.stop(); // si había un par fallado esperando, se descarta
         modelo.setBloqueado(true); // congela el juego y el reloj mientras suenan las animaciones
-        terminarPartida(ganador, "¡Gana " + modelo.getNombre(ganador) + "!\n(victoria forzada con el botón de prueba)");
+        terminarPartida(ganador, "¡Gana " + modelo.getNombre(ganador) + "!\n(victoria forzada con el botón de prueba)", false);
     }
 
-    /** Termina la partida: ganador = 0, 1 o -1 (empate); 'mensaje' es lo que se muestra al final. */
-    private void terminarPartida(int ganador, String mensaje) {
-    if (finalizando) return;
-    finalizando = true;
+    /**
+     * Termina la partida: ganador = 0, 1 o -1 (empate); 'mensaje' es lo que se muestra al final.
+     * 'cuentaParaRanking' es false en las victorias forzadas con los botones de prueba.
+     */
+    private void terminarPartida(int ganador, String mensaje, boolean cuentaParaRanking) {
+        if (finalizando) return;
+        finalizando = true;
 
-    Runnable fin = () -> {
-        boolean otraPartida = vista.preguntarOtraPartida(mensaje);
-        reiniciar();
-        if (otraPartida) arrancarPartida();
-        else vista.volverAlMenu();
-    };
+        // los intentos se leen YA, antes de que reiniciar() borre el modelo
+        final boolean hayGanador = ganador == 0 || ganador == 1;
+        final int intentos = hayGanador ? modelo.getIntentos(ganador) : -1;
 
-    if (ganador == 0 || ganador == 1) {
-        reproducirAnimacion(ganador, ModeloClasico.Animacion.VICTORIA, fin); // solo celebra el ganador
-    } else {
-        fin.run(); // empate: no hay victoria que mostrar
+        // el premio consulta el BCCR: se pide en otro hilo mientras suena la animación para no congelar la ventana
+        final CompletableFuture<Double> premio = (hayGanador && cuentaParaRanking)
+                ? CompletableFuture.supplyAsync(() -> APIbccr.calcularPremio(intentos))
+                : null;
+
+        Runnable fin = () -> {
+            String extra = (premio != null) ? registrarEnRanking(ganador, intentos, premio) : "";
+            boolean otraPartida = vista.preguntarOtraPartida(mensaje + extra);
+            reiniciar();
+            if (otraPartida) arrancarPartida();
+            else vista.volverAlMenu();
+        };
+
+        if (hayGanador) {
+            reproducirAnimacion(ganador, ModeloClasico.Animacion.VICTORIA, fin); // solo celebra el ganador
+        } else {
+            fin.run(); // empate: no hay victoria que mostrar ni ranking
         }
-    }   
+    }
+
+    /** Registra la victoria en el Top 5 y devuelve el texto que se agrega al mensaje final. */
+    private String registrarEnRanking(int ganador, int intentos, CompletableFuture<Double> premioFuturo) {
+        String nombre = (ganador == 0)
+                ? modelo.getNombre(0)
+                : vista.pedirNombre("¡Ganó " + modelo.getNombre(1) + "!\nEscribe tu nombre para el ranking de Mejores Jugadores:",
+                                    modelo.getNombre(1));
+
+        double premio;
+        try {
+            premio = premioFuturo.get(3, TimeUnit.SECONDS); // normalmente ya está listo (APIbccr guarda el tipo de cambio)
+        } catch (Exception e) {
+            premio = -1; // sin conexión con el BCCR: se guarda la marca sin premio
+        }
+
+        StringBuilder texto = new StringBuilder("\n\nPremio: " + VentanaMejoresJugadores.formatearPremio(premio));
+        try {
+            int puesto = ranking.registrar(nombre, intentos, premio);
+            texto.append(puesto > 0
+                    ? "\n¡" + nombre + " entró al Top 5 de Mejores Jugadores en el puesto " + puesto + "!"
+                    : "\n" + nombre + " no entró al Top 5 esta vez.");
+        } catch (IOException ex) {
+            texto.append("\nNo se pudo guardar el ranking: ").append(ex.getMessage());
+        }
+        return texto.toString();
+    }
 }

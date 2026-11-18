@@ -8,6 +8,7 @@ import java.io.File;
 import java.net.URL;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
@@ -106,7 +107,11 @@ private final java.util.Map<String, Image> imagenesCartas = new java.util.HashMa
     private int duracionAviso;
     private int jugadorAviso = -1; // -1 = no hay aviso
 
-    public InterfazMatrices() {
+    /**
+     * @param ranking       modelo de Mejores Jugadores (el controlador registra ahí al ganador)
+     * @param usuarioActual nombre del usuario con sesión iniciada (será el Jugador 1)
+     */
+    public InterfazMatrices(ModeloMejoresJugadores ranking, Supplier<String> usuarioActual) {
         Dimension tam = new Dimension(ANCHO, ALTO);
         setPreferredSize(tam);
         setMinimumSize(tam);
@@ -187,7 +192,7 @@ private final java.util.Map<String, Image> imagenesCartas = new java.util.HashMa
         });
 
         // crea el modelo y el controlador de este modo
-        new ControladorClasico(new ModeloClasico(), this);
+        new ControladorClasico(new ModeloClasico(), this, ranking, usuarioActual);
     }
 
     // ------------------------------------------------------------------
@@ -624,6 +629,13 @@ private static class Celda extends JLabel {
         int eleccion = JOptionPane.showOptionDialog(this, mensaje, "Fin de la partida",
                 JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, opciones, opciones[0]);
         return eleccion == 0;
+    }
+
+    /** Pide un nombre (por ejemplo, al Jugador 2 que ganó, para el ranking). Si cancela, devuelve 'porDefecto'. */
+    public String pedirNombre(String mensaje, String porDefecto) {
+        Object r = JOptionPane.showInputDialog(this, mensaje, "Mejores Jugadores",
+                JOptionPane.QUESTION_MESSAGE, null, null, porDefecto);
+        return r == null ? porDefecto : r.toString();
     }
 
     public void volverAlMenu() {
