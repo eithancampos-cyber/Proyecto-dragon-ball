@@ -27,14 +27,8 @@ public class ModeloRostros {
      * MÁS BAJO = MÁS ESTRICTO. Si tu propio rostro te rechaza, súbelo de a 0.02; si deja entrar a
      * otra persona, bájalo. En la consola se imprime la distancia de cada intento para que la ajustes.
      */
-    public static final double UMBRAL_COINCIDENCIA = 0.06;
-
-    /**
-     * Al registrar, las capturas deben parecerse entre sí (si no, la persona se movió mucho, cambió la luz
-     * o se mezclaron personas). Es más holgado que el umbral de coincidencia porque aquí las huellas se
-     * comparan sin el ajuste de desplazamiento que sí se aplica al hacer login.
-     */
-    public static final double UMBRAL_CONSISTENCIA = 0.10;
+      public static final double UMBRAL_COINCIDENCIA = 0.12;   
+    public static final double UMBRAL_CONSISTENCIA = 0.20;   
 
     public static final int MIN_MUESTRAS_REGISTRO = 3; // fotogramas buenos mínimos al registrar
     public static final int MIN_FRAMES_LOGIN = 2;      // fotogramas buenos mínimos al hacer login

@@ -6,13 +6,16 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * MODELO (sin Swing ni archivos de datos): analiza una imagen de la cámara.
+ * MODELO (sin Swing ni archivos): analiza una imagen de la cámara.
  *
- *  1. Decide si hay un rostro completo frente a la cámara (y si no, POR QUÉ no).
+ *  1. Decide si hay un rostro completo frente a la cámara (y si no, POR QUÉ no:
+ *     no hay nadie, está muy oscuro, la cara está tapada o cortada...).
+ *     El rostro y los ojos se detectan con OpenCV (DetectorOpenCV); si OpenCV no carga, se usa
+ *     un método de respaldo por color de piel.
  *  2. Si lo hay, calcula la "huella" del rostro: un descriptor LBP por zonas
- *     (el mismo principio del LBPH de OpenCV, hecho en Java puro, sin librerías).
+ *     (el mismo principio del LBPH de OpenCV, hecho en Java puro).
  *
- * La huella NO guarda la foto: son histogramas de texturas locales de 6x6 zonas de la cara.
+ * La huella NO guarda la foto: son histogramas de texturas locales de 4x4 zonas de la cara.
  * Dos huellas se comparan con distancia(); entre más baja, más parecidas.
  */
 public class AnalizadorRostro {
@@ -38,11 +41,13 @@ public class AnalizadorRostro {
     }
 
     // ---- Parámetros del descriptor ----
-    private static final int LADO = 96;       // la cara se normaliza a 96x96
-    private static final int REJILLA = 6;     // 6x6 zonas (cada una de 16x16 px)
+    private static final int LADO = 64;       // la cara se normaliza a 64x64 (más chico = menos sensible al ruido y a pequeños movimientos)
+    private static final int REJILLA = 4;     // 4x4 zonas (cada una de 16x16 px)
     private static final int BINS = 59;       // LBP "uniforme": 58 patrones + 1 para el resto
-    // Un vecino cuenta como "más claro" solo si supera al centro por más de esto (0-255).
-    private static final int TOLERANCIA_RUIDO = 4;
+    // Un vecino cuenta como "más claro" solo si supera al centro por más de esto (0-255). Sin esta
+    // tolerancia, el ruido de la cámara en mejillas y frente genera patrones al azar y hasta la
+    // misma persona saldría distinta de sí misma. Con ella, solo cuentan los bordes reales (ojos, cejas, boca...).
+    private static final int TOLERANCIA_RUIDO = 6;
     public static final int TAM_DESCRIPTOR = REJILLA * REJILLA * BINS;
     private static final int[] TABLA_LBP = crearTablaUniforme();
 
@@ -50,16 +55,17 @@ public class AnalizadorRostro {
     private static final double[][] DESPLAZAMIENTOS = {{0, 0}, {-0.06, 0}, {0.06, 0}, {0, -0.06}, {0, 0.06}};
 
     // ---- Parámetros de la detección ----
-    private static final int PASO = 4;
-    private static final double LUZ_MINIMA = 15;        // acepta imágenes bastante oscuras
-    private static final double MIN_ANCHO = 0.06;       // el rostro puede ser pequeño (6% del ancho)
-    private static final double MIN_ALTO = 0.08;        // 8% del alto
-    private static final double MIN_AREA = 0.008;       // 0.8% de piel en la imagen
-    private static final double MAX_AREA = 0.90;        // tolera estar muy cerca
-    private static final double PROPORCION_MIN = 0.25;
-    private static final double PROPORCION_MAX = 3.50;
-    private static final double RELLENO_MIN = 0.08;
-    private static final double ASIMETRIA_MAX = 0.80;   // tolera luz lateral fuerte o cara ladeada
+    private static final int PASO = 4;                  // se analiza 1 de cada 4 píxeles (rápido)
+    private static final double LUZ_MINIMA = 35;        // brillo medio (0-255) por debajo = muy oscuro
+    private static final double MIN_ANCHO = 0.12;       // el rostro debe medir al menos 12% del ancho de la imagen
+    private static final double MIN_ALTO = 0.15;        // y 15% del alto
+    private static final double MIN_AREA = 0.02;        // y tener al menos 2% de la imagen en tono piel
+    private static final double MAX_AREA = 0.65;        // más de 65% = demasiado cerca / mano en la lente
+    private static final double PROPORCION_MIN = 0.75;  // alto/ancho del rostro (con algo de cuello)
+    private static final double PROPORCION_MAX = 2.4;
+    private static final double RELLENO_MIN = 0.30;     // un rostro llena buena parte de su caja
+    private static final double ASIMETRIA_MAX = 0.40;   // diferencia izquierda/derecha (tapar media cara la dispara)
+
     private AnalizadorRostro() { }
 
     // ------------------------------------------------------------------
@@ -84,6 +90,12 @@ public class AnalizadorRostro {
         if (suma / (double) luma.length < LUZ_MINIMA) {
             System.out.println("[Facial] rechazo: muy oscura");
             return new Resultado(Estado.MUY_OSCURA, Collections.<float[]>emptyList());
+        }
+
+        // Con OpenCV (lo trae el pom.xml) el rostro se detecta con clasificadores Haar: mucho más fiable que el color de piel.
+        // Si OpenCV no está disponible, se sigue con el método de respaldo de abajo (color de piel).
+        if (DetectorOpenCV.disponible()) {
+            return analizarConOpenCV(img, luma, w, h);
         }
 
         // máscara de piel en una cuadrícula gruesa
@@ -152,16 +164,14 @@ public class AnalizadorRostro {
         }
         // 2) ¿demasiado cerca o algo cubriendo la lente?
         if (mejorPiel > gw * gh * MAX_AREA || (bw > gw * 0.92 && bh > gh * 0.92)) {
-            System.out.println("[Facial] rechazo: demasiado cerca/area. piel=" + mejorPiel
-                    + " de " + (gw * gh) + " ancho=" + bw + "/" + gw + " alto=" + bh + "/" + gh);
+            System.out.println("[Facial] rechazo: demasiado cerca/area");
             return new Resultado(Estado.ROSTRO_INCOMPLETO, Collections.<float[]>emptyList());
         }
         // 3) proporción y relleno propios de un rostro
         double proporcion = bh / (double) bw;
         double relleno = mejorPiel / (double) (bw * bh);
         if (proporcion < PROPORCION_MIN || proporcion > PROPORCION_MAX || relleno < RELLENO_MIN) {
-            System.out.printf(Locale.ROOT, "[Facial] rechazo: forma. proporcion=%.2f (%.2f-%.2f) relleno=%.2f (min %.2f)%n",
-                    proporcion, PROPORCION_MIN, PROPORCION_MAX, relleno, RELLENO_MIN);
+            System.out.printf(Locale.ROOT, "[Facial] rechazo: forma. proporcion=%.2f relleno=%.2f%n", proporcion, relleno);
             return new Resultado(Estado.ROSTRO_INCOMPLETO, Collections.<float[]>emptyList());
         }
         // 4) simetría izquierda/derecha: si tapas media cara, se dispara
@@ -177,8 +187,7 @@ public class AnalizadorRostro {
         }
         double asimetria = (izq + der) == 0 ? 1 : Math.abs(izq - der) / (double) (izq + der);
         if (asimetria > ASIMETRIA_MAX) {
-            System.out.printf(Locale.ROOT, "[Facial] rechazo: asimetria=%.2f (max %.2f) izq=%d der=%d%n",
-                    asimetria, ASIMETRIA_MAX, izq, der);
+            System.out.printf(Locale.ROOT, "[Facial] rechazo: asimetria=%.2f%n", asimetria);
             return new Resultado(Estado.ROSTRO_INCOMPLETO, Collections.<float[]>emptyList());
         }
 
@@ -197,14 +206,40 @@ public class AnalizadorRostro {
         return new Resultado(Estado.OK, descriptores);
     }
 
-    /** Tono de piel en el espacio YCbCr (funciona mejor que RGB con distintas luces y tonos). */
+    // ---- Parámetros de la detección con OpenCV ----
+    private static final int MIN_OJOS = 1; // ojos vistos para dar el rostro por completo (0 = no exigir ojos)
+
+    /** Detección con clasificadores Haar de OpenCV: rostro (cualquier fondo/luz) + ojos para saber que no está tapado. */
+    private static Resultado analizarConOpenCV(BufferedImage img, int[] luma, int w, int h) {
+        DetectorOpenCV.Deteccion d = DetectorOpenCV.detectar(img);
+        if (d == null) {
+            System.out.println("[Facial] rechazo: OpenCV no ve ningun rostro");
+            return new Resultado(Estado.SIN_ROSTRO, Collections.<float[]>emptyList());
+        }
+        if (d.ojos < MIN_OJOS) {
+            System.out.println("[Facial] rechazo: rostro sin ojos visibles (ojos=" + d.ojos + ")");
+            return new Resultado(Estado.ROSTRO_INCOMPLETO, Collections.<float[]>emptyList());
+        }
+        // recorte: la caja del rostro con un pequeño margen lateral; las variantes desplazadas compensan
+        // que la caja de Haar se mueve un poco de un fotograma a otro
+        int ancho = (int) (d.rostro.width * 0.92);
+        int alto = (int) (d.rostro.height * 1.05);
+        int x0 = d.rostro.x + (d.rostro.width - ancho) / 2;
+        int y0 = d.rostro.y;
+        List<float[]> descriptores = new ArrayList<>();
+        for (double[] desp : DESPLAZAMIENTOS) {
+            Rectangle r = ajustar(new Rectangle(x0 + (int) (desp[0] * ancho), y0 + (int) (desp[1] * alto), ancho, alto), w, h);
+            descriptores.add(descriptor(luma, w, r));
+        }
+        return new Resultado(Estado.OK, descriptores);
+    }
+
+    /** Tono de piel en el espacio YCbCr (solo lo usa el método de respaldo, cuando OpenCV no está disponible). */
     private static boolean esPiel(int r, int g, int b) {
         double y = 0.299 * r + 0.587 * g + 0.114 * b;
         double cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
         double cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-        // Cr hasta 180 (el rango clásico llega a 173): con luz cálida o piel rosada el lado más
-        // iluminado de la cara se salía del rango y se rechazaba por "asimétrico".
-        return y >= 40 && cr >= 133 && cr <= 180 && cb >= 77 && cb <= 127;
+        return y >= 90 && cr >= 133 && cr <= 193 && cb >= 77 && cb <= 127;
     }
 
     /** Mantiene el rectángulo dentro de la imagen (lo desplaza y, si no cabe, lo encoge). */
@@ -238,21 +273,23 @@ public class AnalizadorRostro {
             }
         }
 
-        // 1b) suavizado 3x3: quita el ruido que queda antes de buscar bordes
-        int[] suave = new int[d * d];
-        for (int y = 0; y < d; y++) {
-            for (int x = 0; x < d; x++) {
-                int s = 0, n = 0;
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dx = -1; dx <= 1; dx++) {
-                        int yy = y + dy, xx = x + dx;
-                        if (yy >= 0 && yy < d && xx >= 0 && xx < d) { s += parche[yy * d + xx]; n++; }
+        // 1b) suavizado 3x3 (dos pasadas): quita el ruido que queda antes de buscar bordes
+        for (int pasada = 0; pasada < 2; pasada++) {
+            int[] suave = new int[d * d];
+            for (int y = 0; y < d; y++) {
+                for (int x = 0; x < d; x++) {
+                    int s = 0, n = 0;
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dx = -1; dx <= 1; dx++) {
+                            int yy = y + dy, xx = x + dx;
+                            if (yy >= 0 && yy < d && xx >= 0 && xx < d) { s += parche[yy * d + xx]; n++; }
+                        }
                     }
+                    suave[y * d + x] = s / n;
                 }
-                suave[y * d + x] = s / n;
             }
+            parche = suave;
         }
-        parche = suave;
 
         // 2) LBP: cada píxel se compara con sus 8 vecinos; el patrón se cuenta en el histograma de su zona
         float[] desc = new float[TAM_DESCRIPTOR];

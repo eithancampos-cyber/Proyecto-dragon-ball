@@ -173,6 +173,7 @@ public class ReconocimientoFacial extends JPanel {
                 mostrarMensajeError("No se detectó ninguna cámara web.");
             }
         } catch (Throwable t) {
+            t.printStackTrace(); 
             webcam = null; // sin cámara utilizable: escanear() avisará
             mostrarMensajeError("Error al iniciar el controlador de la cámara.");
         }
