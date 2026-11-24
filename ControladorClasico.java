@@ -22,8 +22,9 @@ import javax.swing.Timer;
  * detiene y se vuelve a arrancar al continuar.
  *
  * Mejores Jugadores: al terminar una partida con ganador, se calcula su premio (APIbccr) y se
- * registra en ModeloMejoresJugadores. El Jugador 1 es el usuario que inició sesión; si gana el
- * Jugador 2 se le pide su nombre. Las victorias forzadas con los botones de prueba NO se registran.
+ * registra en ModeloMejoresJugadores. El Jugador 1 (índice 0) es el usuario que inició sesión;
+ * si gana el Jugador 2 (índice 1) se le pide su nombre. Las victorias forzadas con los botones de
+ * prueba NO se registran.
  *
  * Botones de prueba: "Gana Jugador 1" y "Gana Jugador 2" fuerzan el final de la partida
  * para ver las animaciones de victoria y derrota sin tener que jugar.
@@ -88,9 +89,12 @@ public class ControladorClasico {
 
     /** Reproduce la intro si la partida es nueva; si no, solo anuncia el turno. */
     private void arrancarPartida() {
-        // el Jugador 1 es quien inició sesión (puede haber cambiado de usuario desde la última partida)
+        // el Jugador 1 (índice 0) es quien inició sesión (puede haber cambiado de usuario desde la última partida)
         String usuario = usuarioActual.get();
-        modelo.setNombre(0, (usuario == null || usuario.trim().isEmpty()) ? "Jugador 1" : usuario);
+        modelo.setNombre(0, (usuario == null || usuario.trim().isEmpty()) ? "Jugador 1" : usuario.trim());
+        if (modelo.getNombre(1) == null || modelo.getNombre(1).trim().isEmpty()) {
+            modelo.setNombre(1, "Jugador 2");
+        }
         if (!introPendiente) {
             anunciarTurnoActual();
             return;
@@ -273,10 +277,21 @@ public class ControladorClasico {
 
     /** Registra la victoria en el Top 5 y devuelve el texto que se agrega al mensaje final. */
     private String registrarEnRanking(int ganador, int intentos, CompletableFuture<Double> premioFuturo) {
-        String nombre = (ganador == 0)
-                ? modelo.getNombre(0)
-                : vista.pedirNombre("¡Ganó " + modelo.getNombre(1) + "!\nEscribe tu nombre para el ranking de Mejores Jugadores:",
-                                    modelo.getNombre(1));
+        String nombre;
+        if (ganador == 0) {
+            nombre = modelo.getNombre(0);
+        } else {
+            String actualJ2 = modelo.getNombre(1);
+            String ingresado = vista.pedirNombre(
+                    "¡Ganó " + actualJ2 + "!\nEscribe tu nombre para el ranking de Mejores Jugadores:",
+                    actualJ2);
+            if (ingresado != null && !ingresado.trim().isEmpty()) {
+                nombre = ingresado.trim();
+                modelo.setNombre(1, nombre);
+            } else {
+                nombre = actualJ2;
+            }
+        }
 
         double premio;
         try {
