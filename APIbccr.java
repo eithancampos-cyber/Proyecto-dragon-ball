@@ -16,16 +16,21 @@ import java.util.regex.Pattern;
 public class APIbccr {
 
     // ===== LO ÚNICO QUE TENÉS QUE CAMBIAR =====
+    // Token de autorización para conectarse al servicio web del Banco Central de Costa Rica (BCCR)
     private static final String TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJCQ0NSLVNEREUiLCJzdWIiOiJlZWl0aGFuY3JAZ21haWwuY29tIiwiYXVkIjoiU0RERS1TaXRpb0V4dGVybm8iLCJleHAiOjI1MzQwMjMwMDgwMCwibmJmIjoxNzkzMjg0NDY1LCJpYXQiOjE3OTMyODQ0NjUsImp0aSI6ImYyZGY5ZGU5LTA4NmQtNDUzOC04NDA2LTA3OTNlN2FjMDJmYyIsImVtYWlsIjoiZWVpdGhhbmNyQGdtYWlsLmNvbSJ9._Iyct4wHhbggb3RQGzifGNVghsx9xuRD96YW86-bOYA";
 
+    // Código del indicador económico en el BCCR (317 = compra del dólar, 318 = venta)
     private static final int INDICADOR = 317; // 317 = compra, 318 = venta
 
+    // Guarda el último valor obtenido en memoria para no volver a pedirlo a internet cada vez
     private static double cache = -1; // último tipo de cambio obtenido
 
+    // Constructor privado: todos los métodos son estáticos, no hace falta crear instancias de APIbccr
     private APIbccr() { }
 
     /** Consulta el tipo de cambio en un hilo aparte (no congela la ventana). Llamar al inicio. */
     public static void precargar() {
+        // Lanzamos un hilo secundario para que la petición de red no trabe la interfaz al arrancar
         new Thread(() -> {
             try {
                 obtenerTipoCambio();
@@ -37,6 +42,7 @@ public class APIbccr {
 
     /** Devuelve el último tipo de cambio publicado por el BCCR (colones por dólar). */
     public static synchronized double obtenerTipoCambio() throws Exception {
+        // Si ya tenemos un tipo de cambio guardado en caché, lo devolvemos directo sin ir a internet
         if (cache > 0) return cache; // ya se consultó antes
 
         // Se piden los últimos 10 días porque fines de semana y feriados no tienen dato
@@ -44,6 +50,7 @@ public class APIbccr {
         String desde = URLEncoder.encode(LocalDate.now().minusDays(10).format(f), StandardCharsets.UTF_8);
         String hasta = URLEncoder.encode(LocalDate.now().format(f), StandardCharsets.UTF_8);
 
+        // Armamos la dirección (URL) del API del BCCR con el indicador y el rango de fechas
         String url = "https://apim.bccr.fi.cr/"
                 + "SDDE/api/Bccr.GE.SDDE.Publico.Indicadores.API/"
                 + "indicadoresEconomicos/" + INDICADOR + "/series"
@@ -51,6 +58,7 @@ public class APIbccr {
                 + "&fechaFin=" + hasta
                 + "&idioma=ES";
 
+        // Preparamos la solicitud HTTP GET enviando el token en el encabezado Authorization
         HttpRequest solicitud = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Authorization", "Bearer " + TOKEN)
@@ -58,9 +66,11 @@ public class APIbccr {
                 .GET()
                 .build();
 
+        // Enviamos la solicitud y recibimos el texto de respuesta del servidor
         HttpResponse<String> respuesta = HttpClient.newHttpClient()
                 .send(solicitud, HttpResponse.BodyHandlers.ofString());
 
+        // El código 200 significa que la consulta salió bien; cualquier otro indica error (ej. token inválido)
         if (respuesta.statusCode() != 200) {
             throw new RuntimeException("Error del BCCR: " + respuesta.statusCode() + " (revisá el token)");
         }
@@ -72,16 +82,19 @@ public class APIbccr {
 
         String fechaMax = "";
         double valor = -1;
+        // Recorremos todas las coincidencias para quedarnos con el dato más actual
         while (m.find()) {
             if (m.group(1).compareTo(fechaMax) > 0) {
                 fechaMax = m.group(1);
                 valor = Double.parseDouble(m.group(2));
             }
         }
+        // Si no pudimos extraer un número válido, lanzamos un aviso
         if (valor <= 0) {
             throw new RuntimeException("No se encontró el valor del tipo de cambio: " + respuesta.body());
         }
 
+        // Guardamos el resultado en caché y lo devolvemos
         cache = valor;
         return cache;
     }
@@ -91,8 +104,10 @@ public class APIbccr {
      * Devuelve -1 si no se pudo obtener el tipo de cambio.
      */
     public static double calcularPremio(int intentos) {
+        // Si los intentos son 0 o negativos, no es válido calcular premio
         if (intentos <= 0) return -1;
         try {
+            // Entre menos intentos se usen, mayor es el premio en colones según el tipo de cambio actual
             return 1.0 / intentos * 100 * obtenerTipoCambio();
         } catch (Exception e) {
             System.err.println("No se pudo calcular el premio: " + e.getMessage());

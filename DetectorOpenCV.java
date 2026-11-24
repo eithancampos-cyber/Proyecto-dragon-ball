@@ -28,7 +28,7 @@ import java.nio.file.StandardCopyOption;
  */
 public final class DetectorOpenCV {
 
-    /** Rostro encontrado: su caja y cuántos ojos se vieron en la mitad de arriba. */
+    // "Cajita" para devolver juntos el rectángulo del rostro y cuántos ojos se detectaron
     public static final class Deteccion {
         public final Rectangle rostro;
         public final int ojos;
@@ -38,24 +38,29 @@ public final class DetectorOpenCV {
     private static final String URL_BASE = "https://raw.githubusercontent.com/opencv/opencv/4.x/data/haarcascades/";
     private static final double MIN_TAM_ROSTRO = 0.15; // el rostro debe medir al menos 15% del lado menor de la imagen
 
+    // Banderas para saber si ya probamos cargar OpenCV y si funcionó
     private static boolean intentado = false;
     private static boolean disponible = false;
 
-    // clases y métodos de OpenCV (se resuelven una sola vez)
+    // Clases, constructores y métodos de OpenCV guardados por reflexión para no buscarlos cada vez
     private static Class<?> cMat, cMatOfRect, cRect, cSize, cImgproc, cCascade;
     private static Constructor<?> nuevaMat, nuevaMatVacia, nuevoMatOfRect, nuevoRect, nuevoSize, nuevoCascade;
     private static Method mPut, mSubmat, mRelease, mEcualizar, mDetectar, mToArray, mVacio;
+    // Clasificadores ya cargados para detectar cara y ojos
     private static Object clasifRostro, clasifOjos;
     private static int tipoGris8;
 
+    // Constructor privado porque todos los métodos de esta clase son estáticos
     private DetectorOpenCV() { }
 
+    // Revisa una sola vez si OpenCV y los archivos XML están listos para usarse
     public static synchronized boolean disponible() {
         if (!intentado) {
             intentado = true;
             try {
                 Class.forName("nu.pattern.OpenCV").getMethod("loadLocally").invoke(null); // carga la librería nativa del jar
 
+                // Buscamos las clases principales de OpenCV por su nombre
                 cMat = Class.forName("org.opencv.core.Mat");
                 cMatOfRect = Class.forName("org.opencv.core.MatOfRect");
                 cRect = Class.forName("org.opencv.core.Rect");
@@ -63,6 +68,7 @@ public final class DetectorOpenCV {
                 cImgproc = Class.forName("org.opencv.imgproc.Imgproc");
                 cCascade = Class.forName("org.opencv.objdetect.CascadeClassifier");
 
+                // Obtenemos el formato de imagen en escala de grises de 8 bits y los constructores necesarios
                 tipoGris8 = Class.forName("org.opencv.core.CvType").getField("CV_8UC1").getInt(null);
                 nuevaMat = cMat.getConstructor(int.class, int.class, int.class);
                 nuevaMatVacia = cMat.getConstructor();
@@ -71,6 +77,7 @@ public final class DetectorOpenCV {
                 nuevoSize = cSize.getConstructor(double.class, double.class);
                 nuevoCascade = cCascade.getConstructor(String.class);
 
+                // Obtenemos los métodos de OpenCV que vamos a llamar al analizar una foto
                 mPut = cMat.getMethod("put", int.class, int.class, byte[].class);
                 mSubmat = cMat.getMethod("submat", cRect);
                 mRelease = cMat.getMethod("release");
@@ -79,11 +86,13 @@ public final class DetectorOpenCV {
                 mToArray = cMatOfRect.getMethod("toArray");
                 mVacio = cCascade.getMethod("empty");
 
+                // Cargamos los dos modelos XML: uno para rostros y otro para ojos
                 clasifRostro = cargar("haarcascade_frontalface_default.xml");
                 clasifOjos = cargar("haarcascade_eye.xml");
                 disponible = clasifRostro != null && clasifOjos != null;
                 System.out.println("[Facial] OpenCV " + (disponible ? "listo (deteccion Haar)" : "sin clasificadores: se usa el metodo de respaldo"));
             } catch (Throwable t) {
+                // Si algo falla (falta el jar, librería o XML), dejamos disponible en false y usamos el respaldo
                 Throwable causa = t.getCause() != null ? t.getCause() : t;
                 System.err.println("[Facial] OpenCV no disponible (" + causa + "): se usa el metodo de respaldo");
             }
@@ -93,10 +102,11 @@ public final class DetectorOpenCV {
 
     /** Devuelve el rostro más grande de la imagen, o null si no hay ninguno. */
     public static synchronized Deteccion detectar(BufferedImage img) {
+        // Si OpenCV no está disponible, salimos rápido para que se use el método alternativo
         if (!disponible()) return null;
         int w = img.getWidth(), h = img.getHeight();
 
-        // imagen en grises -> Mat (sin depender de códecs ni de conversiones de OpenCV)
+        // Pasamos la imagen a escala de grises y extraemos sus bytes (sin depender de códecs ni de conversiones de OpenCV)
         BufferedImage gris = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
         Graphics2D g = gris.createGraphics();
         g.drawImage(img, 0, 0, null);
@@ -105,23 +115,27 @@ public final class DetectorOpenCV {
 
         Object mat = null, ecualizada = null, rostros = null, ojos = null, zonaOjos = null;
         try {
+            // Creamos la matriz de OpenCV con los píxeles grises y mejoramos el contraste
             mat = nuevaMat.newInstance(h, w, tipoGris8);
             mPut.invoke(mat, 0, 0, datos);
             ecualizada = nuevaMatVacia.newInstance();
             mEcualizar.invoke(null, mat, ecualizada); // compensa poca luz / luz desigual
+
+            // Detectamos posibles rostros que cumplan con el tamaño mínimo
             rostros = nuevoMatOfRect.newInstance();
             int minimo = (int) (Math.min(w, h) * MIN_TAM_ROSTRO);
             mDetectar.invoke(clasifRostro, ecualizada, rostros, 1.1, 4, 0,
                     nuevoSize.newInstance((double) minimo, (double) minimo), nuevoSize.newInstance(0.0, 0.0));
 
+            // Elegimos el rostro más grande (área = ancho * alto) por si aparece más de uno
             int[] mejor = null; // x, y, ancho, alto
             for (Object r : (Object[]) mToArray.invoke(rostros)) {
                 int[] c = coordenadas(r);
                 if (mejor == null || c[2] * c[3] > mejor[2] * mejor[3]) mejor = c;
             }
-            if (mejor == null) return null;
+            if (mejor == null) return null; // no se encontró ningún rostro
 
-            // ojos: se buscan en la mitad de arriba del rostro
+            // Buscamos ojos solo en la parte superior del rostro encontrado
             Object arriba = nuevoRect.newInstance(mejor[0], mejor[1], mejor[2], (int) (mejor[3] * 0.55));
             zonaOjos = mSubmat.invoke(ecualizada, arriba);
             ojos = nuevoMatOfRect.newInstance();
@@ -130,12 +144,14 @@ public final class DetectorOpenCV {
                     nuevoSize.newInstance(minOjo, minOjo), nuevoSize.newInstance(0.0, 0.0));
             int cuantosOjos = ((Object[]) mToArray.invoke(ojos)).length;
 
+            // Devolvemos la posición del rostro y la cantidad de ojos detectados
             return new Deteccion(new Rectangle(mejor[0], mejor[1], mejor[2], mejor[3]), cuantosOjos);
         } catch (Throwable t) {
             Throwable causa = t.getCause() != null ? t.getCause() : t;
             System.err.println("[Facial] error en OpenCV: " + causa);
             return null;
         } finally {
+            // Liberamos la memoria usada por las estructuras de OpenCV aunque haya habido error
             liberar(zonaOjos);
             liberar(mat);
             liberar(ecualizada);
@@ -144,6 +160,7 @@ public final class DetectorOpenCV {
         }
     }
 
+    // Extrae x, y, ancho y alto de un objeto Rect de OpenCV en un arreglo simple
     private static int[] coordenadas(Object rect) throws ReflectiveOperationException {
         return new int[]{
             cRect.getField("x").getInt(rect), cRect.getField("y").getInt(rect),
@@ -151,6 +168,7 @@ public final class DetectorOpenCV {
         };
     }
 
+    // Libera de forma segura una matriz/estructura de OpenCV si no es nula
     private static void liberar(Object mat) {
         if (mat == null) return;
         try { mRelease.invoke(mat); } catch (Throwable ignorada) { }
@@ -160,6 +178,7 @@ public final class DetectorOpenCV {
     // Carga de los clasificadores .xml
     // ------------------------------------------------------------------
 
+    // Localiza un archivo XML y crea su clasificador en cascada; si no existe o está vacío, retorna null
     private static Object cargar(String nombre) throws ReflectiveOperationException {
         Path ruta = localizar(nombre);
         if (ruta == null) {
@@ -174,6 +193,7 @@ public final class DetectorOpenCV {
         return c;
     }
 
+    // Busca el XML en carpetas del proyecto, dentro del classpath o en la caché (descargándolo si hace falta)
     private static Path localizar(String nombre) {
         // 1) carpeta del proyecto (donde está Main.java)
         for (String carpeta : new String[]{".", "Proyecto-dragon-ball", "src", "src/main/resources"}) {

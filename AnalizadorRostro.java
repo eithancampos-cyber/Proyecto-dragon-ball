@@ -20,6 +20,7 @@ import java.util.Locale;
  */
 public class AnalizadorRostro {
 
+    // Posibles resultados al revisar una foto (si todo está bien es OK; si no, indica qué pasó)
     public enum Estado { OK, SIN_IMAGEN, MUY_OSCURA, SIN_ROSTRO, ROSTRO_INCOMPLETO }
 
     /** Resultado de analizar UNA imagen. Si estado == OK trae los descriptores. */
@@ -27,6 +28,7 @@ public class AnalizadorRostro {
         private final Estado estado;
         private final List<float[]> descriptores;
 
+        // Constructor privado: solo AnalizadorRostro crea objetos Resultado
         private Resultado(Estado estado, List<float[]> descriptores) {
             this.estado = estado;
             this.descriptores = descriptores;
@@ -37,6 +39,7 @@ public class AnalizadorRostro {
 
         /** [0] = recorte centrado (el que se guarda al registrar); el resto, variantes algo desplazadas. */
         public List<float[]> getDescriptores() { return descriptores; }
+        // Devuelve el descriptor principal (el primero) o null si no hubo ninguno
         public float[] getDescriptor() { return descriptores.isEmpty() ? null : descriptores.get(0); }
     }
 
@@ -48,7 +51,9 @@ public class AnalizadorRostro {
     // tolerancia, el ruido de la cámara en mejillas y frente genera patrones al azar y hasta la
     // misma persona saldría distinta de sí misma. Con ella, solo cuentan los bordes reales (ojos, cejas, boca...).
     private static final int TOLERANCIA_RUIDO = 6;
+    // Tamaño total del arreglo numérico que representa la "huella" del rostro (16 zonas * 59 valores)
     public static final int TAM_DESCRIPTOR = REJILLA * REJILLA * BINS;
+    // Tabla precalculada para traducir cada patrón de 8 bits (0..255) a su casilla uniforme
     private static final int[] TABLA_LBP = crearTablaUniforme();
 
     // Variantes del recorte (fracción del ancho/alto): compensan que el recorte nunca cae exacto
@@ -66,17 +71,21 @@ public class AnalizadorRostro {
     private static final double RELLENO_MIN = 0.15;     // un rostro llena buena parte de su caja
     private static final double ASIMETRIA_MAX = 0.40;   // diferencia izquierda/derecha (tapar media cara la dispara)
 
+    // Constructor privado: todos los métodos son estáticos, no hace falta instanciar AnalizadorRostro
     private AnalizadorRostro() { }
 
     // ------------------------------------------------------------------
     // Detección + huella
     // ------------------------------------------------------------------
 
+    // Revisa la imagen: filtra si está vacía o muy oscura, usa OpenCV si está disponible o pasa al plan de piel
     public static Resultado analizar(BufferedImage img) {
+        // Si no hay imagen o es demasiado pequeña, devolvemos SIN_IMAGEN
         if (img == null || img.getWidth() < 64 || img.getHeight() < 64) {
             return new Resultado(Estado.SIN_IMAGEN, Collections.<float[]>emptyList());
         }
         int w = img.getWidth(), h = img.getHeight();
+        // Leemos todos los píxeles RGB de la imagen en un arreglo de enteros
         int[] rgb = img.getRGB(0, 0, w, h, null, 0, w);
 
         // luminosidad de toda la imagen (sirve para el descriptor y para detectar "muy oscuro")
@@ -84,9 +93,11 @@ public class AnalizadorRostro {
         long suma = 0;
         for (int i = 0; i < luma.length; i++) {
             int p = rgb[i];
+            // Fórmula estándar para pasar de RGB a brillo/luminancia (0 a 255)
             luma[i] = (299 * ((p >> 16) & 0xFF) + 587 * ((p >> 8) & 0xFF) + 114 * (p & 0xFF)) / 1000;
             suma += luma[i];
         }
+        // Si el brillo promedio es muy bajo, avisamos que está muy oscura
         if (suma / (double) luma.length < LUZ_MINIMA) {
             System.out.println("[Facial] rechazo: muy oscura");
             return new Resultado(Estado.MUY_OSCURA, Collections.<float[]>emptyList());
@@ -98,6 +109,7 @@ public class AnalizadorRostro {
             return analizarConOpenCV(img, luma, w, h);
         }
 
+        // --- Método de respaldo: detectar rostro por tono de piel ---
         // máscara de piel en una cuadrícula gruesa
         int gw = w / PASO, gh = h / PASO;
         boolean[] piel = new boolean[gw * gh];
@@ -122,7 +134,7 @@ public class AnalizadorRostro {
             }
         }
 
-        // se queda con la mancha de piel más grande (la cara)
+        // se queda con la mancha de piel más grande (la cara) usando una búsqueda por pila (DFS)
         int[] etiqueta = new int[piel.length];
         int[] pila = new int[piel.length];
         int id = 0, mejorId = 0, mejorPiel = 0;
@@ -144,11 +156,13 @@ public class AnalizadorRostro {
                     if (y < minY) minY = y;
                     if (y > maxY) maxY = y;
                 }
+                // Revisamos vecinos arriba, abajo, izquierda y derecha para recorrer la mancha conectada
                 if (x > 0 && dil[p - 1] && etiqueta[p - 1] == 0) { etiqueta[p - 1] = id; pila[tope++] = p - 1; }
                 if (x < gw - 1 && dil[p + 1] && etiqueta[p + 1] == 0) { etiqueta[p + 1] = id; pila[tope++] = p + 1; }
                 if (y > 0 && dil[p - gw] && etiqueta[p - gw] == 0) { etiqueta[p - gw] = id; pila[tope++] = p - gw; }
                 if (y < gh - 1 && dil[p + gw] && etiqueta[p + gw] == 0) { etiqueta[p + gw] = id; pila[tope++] = p + gw; }
             }
+            // Guardamos la mancha que tenga más píxeles reales de piel
             if (cuenta > mejorPiel) {
                 mejorPiel = cuenta; mejorId = id;
                 bMinX = minX; bMaxX = maxX; bMinY = minY; bMaxY = maxY;
@@ -198,6 +212,7 @@ public class AnalizadorRostro {
         int alto = (int) (ancho * 1.25);
         int x0 = caraX + (int) (caraAncho * 0.06);
 
+        // Generamos el descriptor centrado y los ligeramente desplazados
         List<float[]> descriptores = new ArrayList<>();
         for (double[] d : DESPLAZAMIENTOS) {
             Rectangle r = ajustar(new Rectangle(x0 + (int) (d[0] * ancho), caraY + (int) (d[1] * alto), ancho, alto), w, h);
@@ -212,10 +227,12 @@ public class AnalizadorRostro {
     /** Detección con clasificadores Haar de OpenCV: rostro (cualquier fondo/luz) + ojos para saber que no está tapado. */
     private static Resultado analizarConOpenCV(BufferedImage img, int[] luma, int w, int h) {
         DetectorOpenCV.Deteccion d = DetectorOpenCV.detectar(img);
+        // Si OpenCV no encuentra rostro, devolvemos SIN_ROSTRO
         if (d == null) {
             System.out.println("[Facial] rechazo: OpenCV no ve ningun rostro");
             return new Resultado(Estado.SIN_ROSTRO, Collections.<float[]>emptyList());
         }
+        // Si no se ve al menos un ojo, consideramos que el rostro está tapado o incompleto
         if (d.ojos < MIN_OJOS) {
             System.out.println("[Facial] rechazo: rostro sin ojos visibles (ojos=" + d.ojos + ")");
             return new Resultado(Estado.ROSTRO_INCOMPLETO, Collections.<float[]>emptyList());
@@ -239,6 +256,7 @@ public class AnalizadorRostro {
         double y = 0.299 * r + 0.587 * g + 0.114 * b;
         double cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
         double cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+        // Rangos típicos donde suele caer el tono de piel humana sin importar mucho la iluminación
         return y >= 90 && cr >= 133 && cr <= 193 && cb >= 77 && cb <= 127;
     }
 
@@ -298,6 +316,7 @@ public class AnalizadorRostro {
             for (int x = 1; x <= LADO; x++) {
                 int c = parche[y * d + x] + TOLERANCIA_RUIDO;
                 int codigo = 0;
+                // Ponemos un bit (1, 2, 4, 8, 16, 32, 64, 128) por cada vecino que supere al centro + tolerancia
                 if (parche[(y - 1) * d + (x - 1)] >= c) codigo |= 1;
                 if (parche[(y - 1) * d + x] >= c) codigo |= 2;
                 if (parche[(y - 1) * d + (x + 1)] >= c) codigo |= 4;
@@ -306,6 +325,7 @@ public class AnalizadorRostro {
                 if (parche[(y + 1) * d + x] >= c) codigo |= 32;
                 if (parche[(y + 1) * d + (x - 1)] >= c) codigo |= 64;
                 if (parche[y * d + (x - 1)] >= c) codigo |= 128;
+                // Ubicamos en qué zona de la cuadrícula 4x4 cae el píxel y sumamos al contador de su patrón
                 int zona = ((y - 1) / celda) * REJILLA + (x - 1) / celda;
                 desc[zona * BINS + TABLA_LBP[codigo]]++;
             }
@@ -325,6 +345,7 @@ public class AnalizadorRostro {
             int base = z * BINS;
             for (int k = 0; k < BINS; k++) {
                 double x = a[base + k], y = b[base + k], s = x + y;
+                // Evitamos dividir entre cero si ambos valores son 0
                 if (s > 0) total += (x - y) * (x - y) / s;
             }
         }
@@ -337,11 +358,14 @@ public class AnalizadorRostro {
         int siguiente = 0;
         for (int c = 0; c < 256; c++) {
             int cambios = 0;
+            // Contamos cuántas veces cambia de 0 a 1 o de 1 a 0 alrededor del círculo de 8 vecinos
             for (int b = 0; b < 8; b++) {
                 if (((c >> b) & 1) != ((c >> ((b + 1) % 8)) & 1)) cambios++;
             }
+            // Si tiene 2 cambios o menos es "uniforme" y obtiene su propio índice; si no, queda en -1 por ahora
             tabla[c] = cambios <= 2 ? siguiente++ : -1;
         }
+        // Todos los patrones no uniformes (-1) se agrupan en la última casilla (la número 58, o sea la 59a)
         for (int c = 0; c < 256; c++) if (tabla[c] == -1) tabla[c] = siguiente;
         return tabla;
     }
