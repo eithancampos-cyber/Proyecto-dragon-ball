@@ -21,7 +21,7 @@ import javax.swing.JOptionPane;
 public class ControladorAcceso {
 
     /** true = no se puede crear una cuenta sin rostro. false = el rostro es opcional al registrarse. */
-    private static final boolean ROSTRO_OBLIGATORIO = false;
+    private static final boolean ROSTRO_OBLIGATORIO = true;
     private static final int MAX_INTENTOS_FACIALES = 3;
 
     private final ModeloUsuarios modelo;
