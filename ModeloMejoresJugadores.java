@@ -27,6 +27,7 @@ import java.util.Locale;
  */
 public class ModeloMejoresJugadores {
 
+    // Límites y configuración del ranking
     public static final int MAX = 5;
     public static final int NOMBRE_MAX = ModeloUsuarios.USUARIO_MAX;
     /** true = cada jugador aparece una sola vez (su mejor marca). false = el Top 5 son las 5 mejores partidas. */
@@ -39,6 +40,7 @@ public class ModeloMejoresJugadores {
         private final double premio;   // colones; -1 si no se pudo calcular (BCCR sin conexión)
         private final LocalDate fecha;
 
+        // Constructor privado: las instancias de Puntaje solo se crean dentro del modelo
         private Puntaje(String nombre, int intentos, double premio, LocalDate fecha) {
             this.nombre = nombre;
             this.intentos = intentos;
@@ -46,23 +48,27 @@ public class ModeloMejoresJugadores {
             this.fecha = fecha;
         }
 
+        // Getters de solo lectura (sin setters, reforzando la inmutabilidad)
         public String getNombre() { return nombre; }
         public int getIntentos() { return intentos; }
         public double getPremio() { return premio; }
         public LocalDate getFecha() { return fecha; }
     }
 
-    // menos intentos primero; si empatan, la fecha más antigua primero (List.sort es estable)
+    // Criterio de ordenamiento: menos intentos primero; si empatan, la fecha más antigua primero (List.sort es estable)
     private static final Comparator<Puntaje> ORDEN =
             Comparator.comparingInt(Puntaje::getIntentos).thenComparing(Puntaje::getFecha);
 
+    // Ruta del archivo de persistencia y lista en memoria con los mejores puntajes
     private final Path archivo;
     private final List<Puntaje> top = new ArrayList<>();
 
+    /** Constructor por defecto: usa el archivo "mejores_jugadores.txt" en el directorio de trabajo. */
     public ModeloMejoresJugadores() {
         this(Paths.get("mejores_jugadores.txt"));
     }
 
+    /** Constructor alternativo (útil para pruebas o rutas personalizadas): asigna el archivo y carga datos previos. */
     public ModeloMejoresJugadores(Path archivo) {
         this.archivo = archivo;
         cargar();
@@ -92,6 +98,7 @@ public class ModeloMejoresJugadores {
         if (intentos <= 0) return -1;
 
         Puntaje nuevo = new Puntaje(limpiarNombre(nombre), intentos, premio, LocalDate.now());
+        // Trabaja sobre una copia temporal para no corromper 'top' si ocurre un error al guardar
         List<Puntaje> copia = new ArrayList<>(top);
 
         if (UNA_ENTRADA_POR_JUGADOR) {
@@ -104,17 +111,20 @@ public class ModeloMejoresJugadores {
             }
         }
 
+        // Agrega la nueva marca, ordena según ORDEN y recorta si excede MAX
         copia.add(nuevo);
         copia.sort(ORDEN);
         if (copia.size() > MAX) copia.subList(MAX, copia.size()).clear();
 
+        // Verifica si la nueva marca quedó dentro del Top recortado
         int indice = copia.indexOf(nuevo);
         if (indice < 0) return -1; // quedó fuera del Top 5
 
+        // Persiste primero en disco; solo si tiene éxito actualiza la lista en memoria
         escribir(copia); // si falla lanza IOException y 'top' no se toca
         top.clear();
         top.addAll(copia);
-        return indice + 1;
+        return indice + 1; // convierte índice base 0 a puesto base 1
     }
 
     /** Quita ';' y saltos de línea (romperían el archivo), recorta y limita el largo. */
@@ -128,10 +138,12 @@ public class ModeloMejoresJugadores {
     // Archivo mejores_jugadores.txt
     // ------------------------------------------------------------------
 
+    /** Lee el archivo de puntajes al iniciar, parsea líneas válidas y ordena el Top inicial. */
     private void cargar() {
         if (!Files.exists(archivo)) return;
         try {
             for (String linea : Files.readAllLines(archivo, StandardCharsets.UTF_8)) {
+                // El límite -1 conserva campos vacíos al final si los hubiera
                 String[] p = linea.split(";", -1);
                 if (p.length < 4) continue;
                 try {
@@ -150,9 +162,11 @@ public class ModeloMejoresJugadores {
         }
     }
 
+    /** Serializa el ranking en UTF-8 usando un archivo temporal y reemplazo atómico/seguro. */
     private void escribir(List<Puntaje> lista) throws IOException {
         List<String> lineas = new ArrayList<>();
         for (Puntaje p : lista) {
+            // Locale.ROOT garantiza el punto decimal al escribir el double en el archivo
             lineas.add(String.format(Locale.ROOT, "%s;%d;%.2f;%s", p.nombre, p.intentos, p.premio, p.fecha));
         }
         // se escribe a un archivo temporal y luego se reemplaza, para no dejar el archivo a medias

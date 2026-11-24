@@ -16,10 +16,11 @@ import javax.swing.border.TitledBorder;
  */
 public class MatrizPatrones extends JPanel {
 
+    // Dimensiones fijas del área de juego y paleta de colores de la vista
     private static final int ANCHO = 960, ALTO = 540; // mismo tamaño que el área útil de la ventana
     private static final Color DORADO = new Color(255, 215, 0);
 
-    // Colores de las celdas según su estado
+    // Colores de las celdas según su estado (el 4.º parámetro es alfa/transparencia: 0-255)
     private static final Color FONDO_NORMAL = new Color(8, 25, 12, 175);
     private static final Color FONDO_MOSTRADA = new Color(255, 228, 50, 245);
     private static final Color FONDO_ACERTADA = new Color(40, 170, 70, 225);
@@ -31,13 +32,14 @@ public class MatrizPatrones extends JPanel {
         void alTocar(int fila, int col);
     }
 
+    // Recursos gráficos, de audio y referencias de navegación/interacción
     private final Image fondo = Login.cargarImagen("fondoPatrones.gif"); // reutiliza el cargador de Login
     private final Celda[][] matriz = new Celda[ModeloPatrones.N][ModeloPatrones.N];
     private Clip sonidoClic;
     private Runnable alVolver;       // navegación que Main le asigna
     private OyenteCelda oyenteCelda;
 
-    // Panel de información (izquierda)
+    // Panel de información (izquierda): etiquetas de estado, mensajes y barras de tiempo
     private final JLabel lblPatron = etiqueta(15, DORADO);
     private final JLabel lblRondas = etiqueta(13, Color.WHITE);
     private final JLabel lblProgreso = etiqueta(13, Color.WHITE);
@@ -47,20 +49,26 @@ public class MatrizPatrones extends JPanel {
     private final Barra barraTotal = new Barra();
     private final Barra barraEntre = new Barra();
 
+    // Botones principales de acción en la vista
     private final BotonDragonBall btnVolver;
     private final BotonDragonBall btnIniciar;
 
+    /**
+     * Constructor de la vista: fija el tamaño del panel, carga el audio, arma el tablero,
+     * el panel lateral de información y los botones, y ensambla el modelo y el controlador.
+     */
     public MatrizPatrones() {
         Dimension tam = new Dimension(ANCHO, ALTO);
         setPreferredSize(tam);
         setMinimumSize(tam); // evita que el GridBagLayout de Main lo encoja
         setMaximumSize(tam);
+        // Layout absoluto (null) para posicionar los componentes con coordenadas exactas (setBounds)
         setLayout(null);
 
         cargarSonido();
 
         // Matriz grande: ocupa toda la parte central (x 25%-75%, y 11%-97%)
-       JPanel panelMatriz = crearPanelMatriz("Matriz " + ModeloPatrones.N + "x" + ModeloPatrones.N + " - Modo Patrones");
+        JPanel panelMatriz = crearPanelMatriz("Matriz " + ModeloPatrones.N + "x" + ModeloPatrones.N + " - Modo Patrones");
         panelMatriz.setBounds((int) (ANCHO * 0.25), (int) (ALTO * 0.11), (int) (ANCHO * 0.5), (int) (ALTO * 0.86));
         add(panelMatriz);
 
@@ -75,7 +83,7 @@ public class MatrizPatrones extends JPanel {
         btnIniciar.setBounds(35, 348, 175, 44);
         add(btnIniciar);
 
-        // Botón arriba al centro
+        // Botón arriba al centro para regresar al menú principal
         btnVolver = new BotonDragonBall("Volver al menú");
         btnVolver.setBounds(ANCHO / 2 - 70, (int) (ALTO * 0.02), 140, 32);
         btnVolver.addActionListener(e -> volverAlMenu());
@@ -92,6 +100,7 @@ public class MatrizPatrones extends JPanel {
     /** Carga clic.wav (classpath o carpeta del proyecto); si falta, el juego sigue sin sonido. */
     private void cargarSonido() {
         try {
+            // Primero busca dentro del classpath (útil al empaquetar en JAR); si no está, prueba como archivo local
             URL url = getClass().getResource("/clic.wav");
             try (AudioInputStream audio = url != null
                     ? AudioSystem.getAudioInputStream(url)
@@ -130,11 +139,13 @@ public class MatrizPatrones extends JPanel {
     /** Crea el panel con la cuadrícula de celdas (n x n según el arreglo). */
     private JPanel crearPanelMatriz(String titulo) {
         int n = matriz.length;
+        // GridLayout organiza las celdas en una cuadrícula uniforme de n filas x n columnas con separación de 4 px
         JPanel panel = new JPanel(new GridLayout(n, n, 4, 4));
         panel.setOpaque(false); // deja ver el fondo entre las celdas
         panel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(), titulo,
                 TitledBorder.CENTER, TitledBorder.TOP, new Font("Arial", Font.BOLD, 14), Color.WHITE));
 
+        // Instancia cada celda, registra su clic y la guarda en la matriz bidimensional
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 final int fila = i, col = j;
@@ -154,6 +165,7 @@ public class MatrizPatrones extends JPanel {
 
     /** Panel semitransparente con ronda, mensaje y barras de tiempo. */
     private JPanel crearPanelInfo() {
+        // Subclase anónima de JPanel para dibujar un recuadro redondeado semitransparente con borde
         JPanel panel = new JPanel(null) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -164,11 +176,12 @@ public class MatrizPatrones extends JPanel {
                 g2.setColor(Color.BLACK);
                 g2.setStroke(new BasicStroke(3f));
                 g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 22, 22);
-                g2.dispose();
+                g2.dispose(); // libera los recursos gráficos del contexto copiado
             }
         };
         panel.setOpaque(false);
 
+        // Posicionamiento manual de etiquetas y barras dentro del panel de información
         lblPatron.setBounds(14, 10, 190, 22);
         lblRondas.setBounds(14, 34, 190, 20);
         lblProgreso.setBounds(14, 54, 190, 20);
@@ -190,6 +203,7 @@ public class MatrizPatrones extends JPanel {
         return panel;
     }
 
+    /** Fábrica auxiliar para crear etiquetas (JLabel) con fuente Arial negrita y color indicado. */
     private static JLabel etiqueta(int tamano, Color color) {
         JLabel l = new JLabel();
         l.setFont(new Font("Arial", Font.BOLD, tamano));
@@ -211,11 +225,12 @@ public class MatrizPatrones extends JPanel {
 
         Celda() {
             super("", SwingConstants.CENTER);
-            setOpaque(false);
+            setOpaque(false); // se pinta manualmente con transparencia en paintComponent
             setBorder(LINEA_NORMAL);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
         }
 
+        /** Actualiza el color de relleno y el borde si el estado de la celda cambió. */
         void setEstado(ModeloPatrones.Estado nuevo) {
             // MEJORA: si la celda ya está en ese estado no se cambia ni se repinta. pintarTablero
             // recorre las 25 celdas, y casi siempre solo cambia una; con el fondo animado además
@@ -231,6 +246,7 @@ public class MatrizPatrones extends JPanel {
             repaint();
         }
 
+        /** Dibuja el fondo semitransparente de la celda antes de que JLabel dibuje su contenido. */
         @Override
         protected void paintComponent(Graphics g) {
             g.setColor(colorFondo);
@@ -241,15 +257,18 @@ public class MatrizPatrones extends JPanel {
 
     /** Barra de tiempo: verde, amarilla o roja según lo que queda; gris si no aplica. */
     private static class Barra extends JComponent {
-        private double fraccion = 0;
+        private double fraccion = 0; // proporción restante entre 0.0 y 1.0
         private boolean activa = false;
 
+        /** Actualiza el porcentaje de llenado y el estado activo de la barra, y solicita repintado. */
         void set(double fraccion, boolean activa) {
+            // Acota fraccion al rango [0, 1] para evitar desbordes visuales
             this.fraccion = Math.max(0, Math.min(1, fraccion));
             this.activa = activa;
             repaint();
         }
 
+        /** Dibuja el fondo de la barra, el relleno proporcional con semáforo de color y el borde. */
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
@@ -258,6 +277,7 @@ public class MatrizPatrones extends JPanel {
             g2.setColor(new Color(0, 0, 0, 150));
             g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);
             if (activa && fraccion > 0) {
+                // Verde (>50%), dorado (25%-50%) o rojo (<=25%) según el tiempo restante
                 Color color = fraccion > 0.5 ? new Color(60, 200, 90) : fraccion > 0.25 ? DORADO : new Color(230, 50, 40);
                 g2.setColor(color);
                 g2.fillRoundRect(0, 0, Math.max(h, (int) ((w - 1) * fraccion)), h - 1, h, h);
@@ -281,10 +301,12 @@ public class MatrizPatrones extends JPanel {
         }
     }
 
+    /** Actualiza el texto informativo usando HTML simple para permitir saltos de línea. */
     public void setMensaje(String texto) {
         lblMensaje.setText("<html><body style='width:170px'>" + texto.replace("\n", "<br>") + "</body></html>");
     }
 
+    /** Actualiza los textos de tamaño de patrón, rondas superadas y progreso en la ronda actual. */
     public void actualizarMarcador(int casillasPatron, int rondasSuperadas, int aciertosEnRonda) {
         lblPatron.setText("Patrón: " + casillasPatron + " casillas");
         lblRondas.setText("Rondas superadas: " + rondasSuperadas);
@@ -304,6 +326,7 @@ public class MatrizPatrones extends JPanel {
         }
     }
 
+    /** Restablece los indicadores y barras de tiempo a su estado inactivo. */
     public void reiniciarTiempos() {
         lblTiempoTotal.setText("Tiempo total: —");
         lblTiempoEntre.setText("Entre casillas: —");
@@ -311,6 +334,7 @@ public class MatrizPatrones extends JPanel {
         barraEntre.set(0, false);
     }
 
+    /** Muestra u oculta el botón de iniciar partida. */
     public void setBotonIniciarVisible(boolean visible) {
         btnIniciar.setVisible(visible);
     }
@@ -323,6 +347,7 @@ public class MatrizPatrones extends JPanel {
         return eleccion == 0;
     }
 
+    /** Ejecuta la acción de retorno al menú configurada por Main, si existe. */
     public void volverAlMenu() {
         if (alVolver != null) alVolver.run();
     }

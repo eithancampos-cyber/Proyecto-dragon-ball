@@ -22,20 +22,24 @@ import java.util.Random;
  */
 public class ModeloPatrones {
 
+    // Constantes de configuración del modo (N define el tamaño N x N del tablero)
     public static final int N = 4;                        // matriz de N x N
-    public static final int CASILLAS_INICIALES = 3;
-    public static final long TIEMPO_TOTAL_MS = 12_000;
-    public static final long TIEMPO_ENTRE_CASILLAS_MS = 2_000;
+    public static final int CASILLAS_INICIALES = 3;       // longitud del patrón en la ronda 1
+    public static final long TIEMPO_TOTAL_MS = 12_000;    // límite global por ronda (12 segundos)
+    public static final long TIEMPO_ENTRE_CASILLAS_MS = 2_000; // límite entre toques consecutivos (2 segundos)
 
+    // Tipos enumerados que representan los distintos estados del juego y sus transiciones
     public enum Estado { NORMAL, MOSTRADA, ACERTADA, FALLADA }
     public enum Fase { INACTIVO, MOSTRANDO, JUGANDO, RONDA_SUPERADA, TERMINADO }
     public enum Resultado { IGNORADO, ACIERTO, RONDA_COMPLETA, FALLO, TIEMPO_AGOTADO }
     public enum MotivoFin { NINGUNO, CASILLA_INCORRECTA, TIEMPO_TOTAL, TIEMPO_ENTRE_CASILLAS }
 
+    // Estructura del tablero y secuencia ordenada de coordenadas {fila, columna} a memorizar
     private final Estado[][] tablero = new Estado[N][N];
     private final List<int[]> patron = new ArrayList<>(); // cada casilla es {fila, columna}
     private final Random azar = new Random();
 
+    // Variables de estado de la partida actual
     private Fase fase;
     private MotivoFin motivoFin;
     private int longitud;          // casillas del patrón de la ronda actual
@@ -44,6 +48,7 @@ public class ModeloPatrones {
     private long inicioTurno;      // hora en que empezó a repetir el patrón
     private long ultimaCasilla;    // hora de la última casilla tocada (-1 si aún no toca ninguna)
 
+    /** Constructor: inicializa el modelo dejándolo en estado inactivo listo para jugar. */
     public ModeloPatrones() {
         reiniciar();
     }
@@ -76,6 +81,7 @@ public class ModeloPatrones {
             generarPatron(); // por seguridad: si no había patrón, se crea uno de la longitud actual
             return;
         }
+        // Agrega una casilla nueva evitando que sea igual a la última del patrón anterior
         patron.add(casillaAlAzar(patron.get(patron.size() - 1)));
         prepararMuestra();
     }
@@ -115,6 +121,7 @@ public class ModeloPatrones {
         tablero[casilla[0]][casilla[1]] = Estado.MOSTRADA;
     }
 
+    /** Restablece todas las celdas del tablero al estado NORMAL. */
     public void limpiarTablero() {
         for (int f = 0; f < N; f++) {
             for (int c = 0; c < N; c++) {
@@ -132,19 +139,22 @@ public class ModeloPatrones {
         fase = Fase.JUGANDO;
     }
 
-    /** El jugador toca la casilla (fila, col). */
+    /** El jugador toca la casilla (fila, col). Evalúa validez, tiempo y coincidencia con el patrón. */
     public Resultado elegir(int fila, int col, long ahora) {
+        // Ignora toques fuera del turno activo o fuera de los límites del tablero
         if (fase != Fase.JUGANDO) return Resultado.IGNORADO;
         if (fila < 0 || fila >= N || col < 0 || col >= N) return Resultado.IGNORADO;
 
         // Si ya se pasó de tiempo, esta casilla llegó tarde
         if (comprobarTiempo(ahora)) return Resultado.TIEMPO_AGOTADO;
 
+        // Verifica si la coordenada coincide con la siguiente casilla esperada en la secuencia
         int[] esperada = patron.get(indice);
         if (esperada[0] == fila && esperada[1] == col) {
             tablero[fila][col] = Estado.ACERTADA;
             indice++;
             ultimaCasilla = ahora;
+            // Si completó todas las casillas del patrón, cierra la ronda como superada
             if (indice == patron.size()) {
                 rondasCompletadas++;
                 fase = Fase.RONDA_SUPERADA;
@@ -153,6 +163,7 @@ public class ModeloPatrones {
             return Resultado.ACIERTO;
         }
 
+        // Si se equivocó de casilla, marca el error y finaliza la partida
         tablero[fila][col] = Estado.FALLADA;
         terminar(MotivoFin.CASILLA_INCORRECTA);
         return Resultado.FALLO;
@@ -161,10 +172,12 @@ public class ModeloPatrones {
     /** Revisa los dos límites de tiempo. Si se agotó alguno, termina la partida y devuelve true. */
     public boolean comprobarTiempo(long ahora) {
         if (fase != Fase.JUGANDO) return false;
+        // 1. Límite de 12 segundos desde que inició el turno del jugador
         if (ahora - inicioTurno > TIEMPO_TOTAL_MS) {
             terminar(MotivoFin.TIEMPO_TOTAL);
             return true;
         }
+        // 2. Límite de 2 segundos entre una casilla tocada y la siguiente (solo tras tocar al menos una)
         if (ultimaCasilla >= 0 && ahora - ultimaCasilla > TIEMPO_ENTRE_CASILLAS_MS) {
             terminar(MotivoFin.TIEMPO_ENTRE_CASILLAS);
             return true;
@@ -172,6 +185,7 @@ public class ModeloPatrones {
         return false;
     }
 
+    /** Registra la causa del fin de partida y cambia la fase a TERMINADO. */
     private void terminar(MotivoFin motivo) {
         motivoFin = motivo;
         fase = Fase.TERMINADO;
@@ -203,6 +217,7 @@ public class ModeloPatrones {
         return copia;
     }
 
+    // Getters de solo lectura para consultar el estado actual del juego
     public List<int[]> getPatron() { return Collections.unmodifiableList(patron); }
     public Fase getFase() { return fase; }
     public MotivoFin getMotivoFin() { return motivoFin; }
