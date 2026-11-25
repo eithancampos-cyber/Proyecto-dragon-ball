@@ -18,6 +18,7 @@ import java.util.Random;
  */
 public class ModeloClasico {
 
+    // Constantes del juego: tablero de N x N cartas, lo que da N*N/2 parejas distintas.
     public static final int N = 6;
     public static final int PARES = N * N / 2; // 18 pares
 
@@ -27,6 +28,8 @@ public class ModeloClasico {
     public static final long MS_OCULTAR_FALLO = 900;  // cuánto se ven las 2 cartas distintas
     public static final long MS_BANNER_TURNO = 1_500; // lo que dura el aviso de turno
 
+    // Qué pasó al voltear una carta: IGNORADO (jugada no válida), PRIMERA (primera carta del intento),
+    // PAREJA (acierto) o NO_PAREJA (fallo).
     public enum Resultado { IGNORADO, PRIMERA, PAREJA, NO_PAREJA }
 
     // ---------- Animaciones ----------
@@ -37,15 +40,19 @@ public class ModeloClasico {
     public static final int PERIODO_ANIMACION_MS = 33; // cada cuánto avanza un cuadro (~30 por segundo)
     public static final int CUADROS_INTRO = 45;        // ~1,5 s
     public static final int CUADROS_FINAL = 75;        // ~2,5 s (después se queda en el último cuadro)
+    // Tope de partículas vivas a la vez, para que la animación no se vuelva pesada.
     private static final int MAX_PARTICULAS = 120;
 
     /** Partícula de una animación. x e y van de 0 a 1 (la vista las escala a su matriz). */
     public static final class Particula {
+        // Posición actual (x, y de 0 a 1) y velocidad (vx, vy) en unidades de matriz por cuadro. 'vida'
+        // son los cuadros que le quedan.
         private float x, y;
         private final float vx, vy;
         private int vida;
         private final int vidaInicial;
 
+        // Constructor con visibilidad de paquete: solo el modelo crea partículas.
         Particula(float x, float y, float vx, float vy, int vida) {
             this.x = x; this.y = y; this.vx = vx; this.vy = vy;
             this.vida = vida; this.vidaInicial = vida;
@@ -64,6 +71,9 @@ public class ModeloClasico {
         public float getAlfa() { return Math.max(0f, Math.min(1f, vida / (float) vidaInicial)); }
     }
 
+    // Datos de la partida. El primer índice es el jugador (0 o 1); los otros dos son fila y columna.
+    // cartas = la letra de cada carta; encontrada = si su pareja ya fue descubierta;
+    // pares e intentos = contadores de cada jugador.
     private final String[][][] cartas = new String[2][N][N];
     private final boolean[][][] encontrada = new boolean[2][N][N];
     private final int[] pares = new int[2];
@@ -78,32 +88,42 @@ public class ModeloClasico {
     private boolean turnoCambio; // para que la vista muestre el aviso
     private boolean bloqueado;   // true mientras suena una animación (intro): no se juega ni corre el reloj
 
+    // Nombres que se muestran en pantalla (el Jugador 1 se cambia por el usuario con sesión iniciada).
     private final String[] nombres = {"Jugador 1", "Jugador 2"};
+    // Estado de la animación de cada jugador: tipo, cuadro actual y partículas vivas.
     private final Animacion[] animacion = {Animacion.NINGUNA, Animacion.NINGUNA};
     private final int[] cuadroAnimacion = new int[2];
     private final List<List<Particula>> particulas = new ArrayList<>();
+    // Generador aleatorio que se usa para las partículas.
     private final Random azar = new Random();
 
+    // Bloque de inicialización: se ejecuta al crear el objeto y deja una lista de partículas vacía por
+    // jugador.
     {
         particulas.add(new ArrayList<>());
         particulas.add(new ArrayList<>());
     }
 
+    // Al crear el modelo, la partida queda lista llamando a reiniciar().
     public ModeloClasico() {
         reiniciar();
     }
 
     /** Baraja los dos tableros y empieza de cero. */
     public void reiniciar() {
+        // Cada jugador recibe su propio tablero barajado (mismas letras, distinto orden).
         for (int j = 0; j < 2; j++) {
             List<String> baraja = new ArrayList<>();
             for (int k = 0; k < PARES; k++) {
                 String simbolo = String.valueOf((char) ('A' + k)); // letras A a R
+                // Cada letra se agrega dos veces: son las dos cartas de la pareja.
                 baraja.add(simbolo);
                 baraja.add(simbolo);
             }
+            // Mezcla la baraja al azar.
             Collections.shuffle(baraja);
 
+            // Reparte la baraja mezclada en la matriz, fila por fila.
             int idx = 0;
             for (int f = 0; f < N; f++) {
                 for (int c = 0; c < N; c++) {
@@ -114,6 +134,8 @@ public class ModeloClasico {
             pares[j] = 0;
             intentos[j] = 0;
         }
+        // Estado inicial: empieza el jugador 1 con el reloj completo y el aviso de turno pendiente (el
+        // reloj espera mientras se muestra).
         turno = 0;
         esperando = false;
         limpiarSeleccion();
@@ -128,7 +150,10 @@ public class ModeloClasico {
 
     /** Voltea una carta del tablero del jugador. Devuelve qué pasó. */
     public Resultado voltear(int jugador, int fila, int col) {
+        // Se ignora la jugada si: la partida terminó, hay un fallo mostrándose, el juego está bloqueado
+        // (intro o final) o no es el turno de ese jugador.
         if (isTerminado() || esperando || bloqueado || jugador != turno) return Resultado.IGNORADO;
+        // Una carta que ya forma parte de una pareja encontrada no se puede volver a voltear.
         if (encontrada[jugador][fila][col]) return Resultado.IGNORADO;
 
         // primera carta
@@ -143,11 +168,14 @@ public class ModeloClasico {
 
         // segunda carta: es un intento
         intentos[jugador]++;
+        // Compara las letras de las dos cartas volteadas (equals, porque son String).
         if (cartas[jugador][fila1][col1].equals(cartas[jugador][fila][col])) {
             encontrada[jugador][fila1][col1] = true;
             encontrada[jugador][fila][col] = true;
             pares[jugador]++;
             limpiarSeleccion();
+            // Premio por acertar: suma tiempo al reloj y el mismo jugador sigue jugando (el turno no
+            // cambia).
             tiempoRestanteMs += MS_BONO_ACIERTO;
             // si ya completó su tablero, el turno pasa al otro (si todavía le falta)
             if (pares[jugador] == PARES) pasarTurno();
@@ -170,6 +198,7 @@ public class ModeloClasico {
      * Devuelve true si se acabó el tiempo y se perdió el turno.
      */
     public boolean descontar(long ms) {
+        // El reloj no corre si la partida terminó, si hay un fallo visible o si el juego está bloqueado.
         if (isTerminado() || esperando || bloqueado) return false;
 
         // mientras sale el aviso de turno no se gasta tiempo
@@ -178,11 +207,15 @@ public class ModeloClasico {
                 graciaMs -= ms;
                 return false;
             }
+            // El aviso ya terminó: lo que sobró de 'ms' sí se descuenta del turno.
             ms -= graciaMs;
             graciaMs = 0;
         }
 
+        // Descuenta del turno el tiempo transcurrido.
         tiempoRestanteMs -= ms;
+        // Se acabó el tiempo: se descarta la carta volteada y pasa el turno. Devuelve true para que el
+        // controlador tape esa carta.
         if (tiempoRestanteMs <= 0) {
             limpiarSeleccion();
             pasarTurno();
@@ -193,15 +226,20 @@ public class ModeloClasico {
 
     /** Pasa el turno al otro jugador (si todavía no termina) y reinicia el reloj. */
     private void pasarTurno() {
+        // 1 - turno alterna entre 0 y 1.
         int otro = 1 - turno;
+        // Solo cambia de jugador si el otro todavía no completó su tablero.
         if (pares[otro] < PARES) {
             turno = otro;
             turnoCambio = true;
             graciaMs = MS_BANNER_TURNO;
         }
+        // El reloj vuelve a 10 s, haya cambiado el turno o no (por ejemplo, si el otro jugador ya
+        // terminó).
         tiempoRestanteMs = MS_TURNO;
     }
 
+    /** Olvida la primera carta del intento (-1 significa 'ninguna'). */
     private void limpiarSeleccion() {
         fila1 = -1;
         col1 = -1;
@@ -209,6 +247,7 @@ public class ModeloClasico {
 
     // ---------- Final de la partida ----------
 
+    /** La partida termina cuando cualquiera de los dos jugadores completa sus 18 pares. */
     public boolean isTerminado() {
     return pares[0] == PARES || pares[1] == PARES;
     }
@@ -216,6 +255,8 @@ public class ModeloClasico {
     /** 0 = gana jugador 1, 1 = gana jugador 2, -1 = empate. */
     /** 0 = gana jugador 1, 1 = gana jugador 2, -1 = empate. Gana el primero en completar sus pares. */
 public int getGanador() {
+    // Regla real del código: gana quien complete primero sus pares. Los intentos solo desempatan si
+    // ambos tableros están completos.
     if (pares[0] == PARES && pares[1] != PARES) return 0;
     if (pares[1] == PARES && pares[0] != PARES) return 1;
     // por si ambos estuvieran completos: gana quien tenga menos intentos
@@ -233,8 +274,10 @@ public int getGanador() {
     /** Mensaje de gane provisional, después se puede cambiar por la animación. */
     public String getMensajeFinal() {
         int ganador = getGanador();
+        // Resumen de intentos de ambos jugadores.
         String detalle = nombres[0] + ": " + intentos[0] + " intentos\n"
                        + nombres[1] + ": " + intentos[1] + " intentos";
+        // Operador ternario: mensaje de empate o de victoria.
         return (ganador == -1)
                 ? "¡Empate!\n" + detalle
                 : "¡Gana " + nombres[ganador] + "!\n" + detalle;
@@ -242,6 +285,7 @@ public int getGanador() {
 
     // ---------- Animaciones ----------
 
+    /** Cuántos cuadros dura cada tipo de animación. */
     private static int duracion(Animacion tipo) {
         switch (tipo) {
             case INTRO: return CUADROS_INTRO;
@@ -273,9 +317,13 @@ public int getGanador() {
         if (!isAnimando(jugador)) return false;
         Animacion tipo = animacion[jugador];
         cuadroAnimacion[jugador]++;
+        // Mueve las partículas existentes y crea nuevas.
         moverParticulas(jugador, tipo);
 
+        // Todavía no llega al último cuadro.
         if (cuadroAnimacion[jugador] < duracion(tipo)) return false;
+        // La intro desaparece sola al terminar. Victoria y derrota se quedan en su último cuadro (por
+        // eso isAnimando pasa a false pero el tipo se conserva).
         if (tipo == Animacion.INTRO) {
             animacion[jugador] = Animacion.NINGUNA;
             cuadroAnimacion[jugador] = 0;
@@ -284,13 +332,20 @@ public int getGanador() {
         return true;
     }
 
+    /**
+     * Avanza las partículas vivas y, si no se llegó al máximo, crea 2 nuevas por cuadro según el tipo de
+     * animación.
+     */
     private void moverParticulas(int jugador, Animacion tipo) {
         List<Particula> lista = particulas.get(jugador);
+        // Mueve cada partícula un cuadro y elimina las que ya terminaron su vida.
         lista.removeIf(p -> !p.mover());
+        // Con el tope alcanzado no se crean más.
         if (lista.size() >= MAX_PARTICULAS) return;
 
         // victoria: chispas que suben desde abajo; derrota: cenizas que caen desde arriba
         for (int i = 0; i < 2; i++) {
+            // Pequeña desviación horizontal al azar, para que no suban o caigan perfectamente rectas.
             float deriva = (azar.nextFloat() - 0.5f) * 0.004f;
             if (tipo == Animacion.VICTORIA) {
                 lista.add(new Particula(azar.nextFloat(), 1f, deriva,
@@ -315,6 +370,7 @@ public int getGanador() {
 
     /** Devuelve true una sola vez cada vez que cambia el turno. */
     public boolean consumirCambioTurno() {
+        // Lee la bandera y la apaga: así cada cambio de turno se anuncia una sola vez.
         boolean r = turnoCambio;
         turnoCambio = false;
         return r;
@@ -328,16 +384,20 @@ public int getGanador() {
     public int getCuadroAnimacion(int jugador) { return cuadroAnimacion[jugador]; }
     /** Avance de la animación de 0 a 1. */
     public double getProgresoAnimacion(int jugador) {
+        // Evita dividir entre 0 cuando no hay animación.
         int d = duracion(animacion[jugador]);
         return d == 0 ? 0 : cuadroAnimacion[jugador] / (double) d;
     }
+    // unmodifiableList: la vista puede leer las partículas pero no modificarlas (protege al modelo).
     public List<Particula> getParticulas(int jugador) { return Collections.unmodifiableList(particulas.get(jugador)); }
 
     public String getNombre(int jugador) { return nombres[jugador]; }
+    // Ignora nombres nulos o vacíos y quita espacios sobrantes.
     public void setNombre(int jugador, String nombre) {
         if (nombre != null && !nombre.trim().isEmpty()) nombres[jugador] = nombre.trim();
     }
 
+    // Redondea hacia arriba (1 s se muestra hasta llegar a 0) y max(0, ...) evita mostrar negativos.
     public int getSegundosRestantes() { return (int) Math.ceil(Math.max(0, tiempoRestanteMs) / 1000.0); }
 
     public String getCarta(int jugador, int fila, int col) { return cartas[jugador][fila][col]; }
